@@ -1,0 +1,765 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  Plus, Search, Book, Calendar, Moon, Sun, ChevronLeft, 
+  Trash2, Edit3, Save, Image as ImageIcon, Loader2, LogIn, Settings,
+  Filter, LayoutGrid, X, Download, Maximize2, Smile, Paperclip, CheckSquare, Square,
+  MoreHorizontal, BookHeart, LogOut
+} from 'lucide-react';
+import { JournalEntry, ViewState, JournalAttachment, GoogleConfig, ChecklistItem } from './types';
+import { DriveService } from './services/driveService';
+import { Button, Input, TextArea, Card, Modal } from './components/Components';
+
+// --- Constants ---
+const STORAGE_CONFIG_KEY = 'mindflow_drive_config';
+
+const MOODS = [
+  { id: 'happy', emoji: '🥰', label: 'Happy', color: 'bg-pink-100 text-pink-600' },
+  { id: 'excited', emoji: '🤩', label: 'Excited', color: 'bg-yellow-100 text-yellow-600' },
+  { id: 'calm', emoji: '😌', label: 'Calm', color: 'bg-blue-100 text-blue-600' },
+  { id: 'neutral', emoji: '😐', label: 'Neutral', color: 'bg-gray-100 text-gray-600' },
+  { id: 'tired', emoji: '😴', label: 'Tired', color: 'bg-indigo-100 text-indigo-600' },
+  { id: 'sad', emoji: '😔', label: 'Sad', color: 'bg-slate-100 text-slate-600' },
+  { id: 'angry', emoji: '😤', label: 'Angry', color: 'bg-red-100 text-red-600' },
+];
+
+// --- Sub-Components ---
+
+const LoadingScreen = ({ message }: { message: string }) => (
+  <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-surface-400 animate-in fade-in duration-700">
+    <div className="relative">
+      <div className="absolute inset-0 bg-brand-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
+      <Loader2 className="relative w-12 h-12 animate-spin mb-6 text-brand-500" />
+    </div>
+    <p className="font-display font-bold tracking-widest uppercase text-xs text-brand-900/40 dark:text-brand-100/40">{message}</p>
+  </div>
+);
+
+const SecureImage = ({ 
+    fileId, 
+    thumbnailUrl,
+    fallbackSrc, 
+    alt, 
+    className, 
+    onLoad 
+}: { 
+    fileId?: string, 
+    thumbnailUrl?: string,
+    fallbackSrc?: string, 
+    alt: string, 
+    className?: string,
+    onLoad?: () => void
+}) => {
+    const [src, setSrc] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        if (!fileId && !thumbnailUrl) {
+            setIsLoading(false);
+            return;
+        }
+
+        let active = true;
+        setIsLoading(true);
+        setHasError(false);
+
+        const loadImage = async () => {
+           try {
+              let url: string | null = null;
+              if (thumbnailUrl) {
+                 try {
+                    url = await DriveService.fetchAuthenticatedBlob(thumbnailUrl);
+                 } catch (e) {
+                    console.warn("Thumbnail fetch failed", e);
+                 }
+              }
+              if (!url && fileId) {
+                 url = await DriveService.downloadMedia(fileId);
+              }
+              if (active && url) {
+                  setSrc(url);
+                  setIsLoading(false);
+              } else if (active) {
+                  throw new Error("No image source available");
+              }
+           } catch (err) {
+                console.warn("Failed to load secure image", err);
+                if (active) {
+                    setHasError(true);
+                    setIsLoading(false);
+                }
+           }
+        };
+        loadImage();
+        return () => { active = false; };
+    }, [fileId, thumbnailUrl]);
+
+    useEffect(() => {
+        return () => {
+            if (src && src.startsWith('blob:')) URL.revokeObjectURL(src);
+        };
+    }, [src]);
+
+    const finalSrc = src || fallbackSrc;
+
+    if (isLoading) {
+        return (
+            <div className={`bg-surface-100 dark:bg-surface-800 flex items-center justify-center ${className}`}>
+                <Loader2 className="w-6 h-6 text-surface-300 animate-spin" />
+            </div>
+        );
+    }
+    if (hasError && !fallbackSrc) {
+         return (
+            <div className={`bg-surface-100 dark:bg-surface-800 flex items-center justify-center ${className}`}>
+                <ImageIcon className="w-6 h-6 text-surface-300" />
+            </div>
+        );
+    }
+    return (
+        <img 
+            src={finalSrc} 
+            alt={alt} 
+            className={`${className} ${!finalSrc ? 'opacity-0' : 'opacity-100'}`}
+            loading="lazy"
+            onLoad={onLoad}
+        />
+    );
+};
+
+// --- Views ---
+
+const SetupView: React.FC<{ onComplete: (config: GoogleConfig) => void }> = ({ onComplete }) => {
+  const [clientId, setClientId] = useState('');
+  const [apiKey, setApiKey] = useState('');
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-surface-50 dark:bg-surface-950">
+      <div className="max-w-md w-full bg-white dark:bg-surface-900 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-brand-900/5 border border-surface-100 dark:border-surface-800">
+        <div className="flex justify-center mb-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-brand-400 to-brand-600 rounded-3xl flex items-center justify-center shadow-lg shadow-brand-500/30 rotate-6">
+            <Settings className="text-white w-10 h-10" />
+          </div>
+        </div>
+        <h2 className="text-3xl font-display font-bold text-center mb-3 text-surface-900 dark:text-white">Setup Drive</h2>
+        <p className="text-center text-surface-500 mb-10 leading-relaxed">
+          Connect your Google Cloud credentials to enable secure, private syncing.
+        </p>
+        <form onSubmit={(e) => { e.preventDefault(); onComplete({ clientId, apiKey }); }} className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 ml-1">Client ID</label>
+            <Input value={clientId} onChange={e => setClientId(e.target.value)} placeholder="xxx.apps.googleusercontent.com" required />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 ml-1">API Key</label>
+            <Input value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="AIzaSy..." required />
+          </div>
+          <Button type="submit" className="w-full !py-4 text-lg shadow-xl shadow-brand-500/20">Connect</Button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const LoginView: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ onLogin, onReset }) => (
+  <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-surface-50 dark:bg-surface-950 text-center">
+     {/* Abstract Background Shapes */}
+     <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-200/30 dark:bg-brand-900/10 rounded-full blur-3xl animate-float"></div>
+     <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-200/30 dark:bg-blue-900/10 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
+
+    <div className="relative z-10 max-w-md w-full backdrop-blur-sm">
+        <div className="w-24 h-24 bg-white dark:bg-surface-800 rounded-[2rem] flex items-center justify-center shadow-soft mx-auto mb-10 rotate-3 hover:rotate-6 transition-transform duration-500">
+          <BookHeart className="text-brand-500 w-12 h-12" />
+        </div>
+        <h1 className="text-6xl font-display font-bold mb-6 text-surface-900 dark:text-white tracking-tight">
+          My <span className="text-brand-500">Diaries</span>
+        </h1>
+        <p className="text-xl text-surface-600 dark:text-surface-400 mb-12 leading-relaxed font-medium">
+          Your private digital sanctuary. <br/>
+          <span className="text-sm opacity-70 font-normal">Synced with Google Drive</span>
+        </p>
+        
+        <div className="space-y-4">
+            <Button onClick={onLogin} className="w-full text-lg !rounded-2xl h-16" variant="primary">
+            <LogIn className="w-6 h-6 mr-3" />
+            Sign in with Google
+            </Button>
+            <Button onClick={onReset} variant="ghost" className="w-full">
+            Reset Configuration
+            </Button>
+        </div>
+    </div>
+  </div>
+);
+
+const Sidebar = ({ 
+    activeView, 
+    onChangeView, 
+    onToggleTheme, 
+    isDark, 
+    onSignOut 
+}: { 
+    activeView: ViewState['type'], 
+    onChangeView: (v: ViewState['type']) => void,
+    onToggleTheme: () => void,
+    isDark: boolean,
+    onSignOut: () => void
+}) => {
+    return (
+        <div className="hidden md:flex flex-col w-80 h-screen sticky top-0 p-6 bg-[#F8F9FC] dark:bg-[#121214]">
+            <div className="flex items-center gap-3 mb-12 px-4">
+                <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
+                    <BookHeart className="w-6 h-6" />
+                </div>
+                <span className="font-display font-bold text-2xl text-surface-900 dark:text-white">My Diaries</span>
+            </div>
+
+            <nav className="space-y-2 flex-1">
+                <button 
+                    onClick={() => onChangeView('LIST')}
+                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all duration-300 font-semibold text-left ${
+                        activeView === 'LIST' 
+                        ? 'bg-white dark:bg-surface-800 text-brand-600 dark:text-brand-300 shadow-soft' 
+                        : 'text-surface-500 hover:bg-white/50 dark:hover:bg-surface-800/50 hover:text-surface-900 dark:hover:text-white'
+                    }`}
+                >
+                    <LayoutGrid className="w-5 h-5" />
+                    All Entries
+                </button>
+            </nav>
+
+            <div className="bg-white dark:bg-surface-900 p-4 rounded-[2rem] shadow-soft border border-surface-50 dark:border-surface-800">
+                <div className="flex items-center justify-between mb-4">
+                   <span className="text-xs font-bold text-surface-400 uppercase tracking-wider ml-2">Theme</span>
+                   <button onClick={onToggleTheme} className="p-2 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
+                       {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                   </button>
+                </div>
+                <button onClick={onSignOut} className="w-full flex items-center justify-center gap-2 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 py-3 rounded-xl transition-colors">
+                    <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const MobileNav = ({ onChangeView, activeView }: { onChangeView: (v: ViewState['type']) => void, activeView: ViewState['type'] }) => (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-900/90 backdrop-blur-xl border-t border-surface-100 dark:border-surface-800 p-4 z-50 pb-8">
+        <div className="flex justify-around items-center">
+             <button onClick={() => onChangeView('LIST')} className={`p-3 rounded-2xl transition-colors ${activeView === 'LIST' ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600' : 'text-surface-400'}`}>
+                 <LayoutGrid className="w-6 h-6" />
+             </button>
+        </div>
+    </div>
+);
+
+const EntryListView: React.FC<{
+  entries: JournalEntry[];
+  onSelect: (id: string) => void;
+  onCreate: () => void;
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+  isLoading: boolean;
+}> = ({ entries, onSelect, onCreate, searchTerm, onSearchChange, isLoading }) => {
+  
+  const filteredEntries = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return entries.filter(e => 
+      e.title.toLowerCase().includes(term) || 
+      new Date(e.date).toLocaleDateString().includes(term) ||
+      (e.mood && e.mood.toLowerCase().includes(term))
+    );
+  }, [entries, searchTerm]);
+
+  if (isLoading && entries.length === 0) return <LoadingScreen message="Syncing..." />;
+
+  return (
+    <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-4 md:px-10 pt-8 md:pt-12">
+       <header className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
+           <div>
+               <h2 className="text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
+               <p className="text-surface-500 font-medium">{entries.length} memories stored</p>
+           </div>
+           <div className="relative w-full md:w-72 group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 group-focus-within:text-brand-500 transition-colors" />
+               <input 
+                 type="text" 
+                 placeholder="Search memories..."
+                 value={searchTerm}
+                 onChange={(e) => onSearchChange(e.target.value)}
+                 className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-transparent focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm"
+               />
+           </div>
+       </header>
+
+       {filteredEntries.length === 0 ? (
+           <div className="flex flex-col items-center justify-center py-20 opacity-60">
+               <div className="w-24 h-24 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-6">
+                   <Book className="w-10 h-10 text-surface-300" />
+               </div>
+               <p className="text-lg font-medium text-surface-500">No entries found.</p>
+               <Button variant="ghost" onClick={onCreate} className="mt-4">Create one now</Button>
+           </div>
+       ) : (
+           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+               {filteredEntries.map((entry, idx) => {
+                   const dateObj = new Date(entry.date);
+                   const day = dateObj.getDate();
+                   const month = dateObj.toLocaleString('default', { month: 'short' });
+                   const moodObj = MOODS.find(m => m.id === entry.mood);
+
+                   return (
+                       <div 
+                          key={entry.id} 
+                          onClick={() => onSelect(entry.id)}
+                          className="group relative bg-white dark:bg-surface-900 rounded-[2rem] p-5 shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-surface-50 dark:border-surface-800/50 animate-slide-up fill-mode-backwards flex flex-col h-64"
+                          style={{ animationDelay: `${idx * 50}ms` }}
+                       >
+                           {/* Date Badge */}
+                           <div className="absolute top-5 left-5 z-10 bg-white/90 dark:bg-surface-900/90 backdrop-blur-sm px-3 py-2 rounded-2xl shadow-sm border border-surface-100 dark:border-surface-800 text-center min-w-[3.5rem]">
+                               <span className="block text-xs font-bold text-surface-400 uppercase">{month}</span>
+                               <span className="block text-xl font-display font-bold text-surface-900 dark:text-white">{day}</span>
+                           </div>
+
+                           {/* Mood Badge */}
+                           {moodObj && (
+                               <div className="absolute top-5 right-5 z-10 text-2xl filter drop-shadow-sm transform group-hover:scale-110 transition-transform">
+                                   {moodObj.emoji}
+                               </div>
+                           )}
+
+                           {/* Content Container */}
+                           <div className="flex-1 mt-2 rounded-2xl overflow-hidden relative bg-surface-50 dark:bg-surface-800">
+                               {entry.coverImageId || entry.coverImage ? (
+                                   <SecureImage 
+                                      fileId={entry.coverImageId}
+                                      thumbnailUrl={entry.coverImage}
+                                      fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s600')}
+                                      alt="Cover"
+                                      className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+                                   />
+                               ) : (
+                                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-50 to-surface-100 dark:from-surface-800 dark:to-surface-800/50">
+                                       <p className="font-serif italic text-surface-400 text-sm p-6 text-center line-clamp-4">
+                                           {entry.content.substring(0, 100)}...
+                                       </p>
+                                   </div>
+                               )}
+                           </div>
+
+                           {/* Footer Title */}
+                           <div className="pt-4 px-1">
+                               <h3 className="font-display font-bold text-xl text-surface-900 dark:text-surface-100 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                                   {entry.title || "Untitled Entry"}
+                               </h3>
+                           </div>
+                       </div>
+                   );
+               })}
+           </div>
+       )}
+
+       {/* Floating Action Button */}
+       <div className="fixed bottom-24 md:bottom-10 right-6 md:right-10 z-40">
+           <Button variant="fab" onClick={onCreate}>
+               <Plus className="w-8 h-8" />
+           </Button>
+       </div>
+    </div>
+  );
+};
+
+const EntryEditorView: React.FC<{
+  initialData?: JournalEntry;
+  onSave: (data: any) => Promise<void>;
+  onCancel: () => void;
+  onDeleteAttachment?: (id: string) => Promise<void>;
+}> = ({ initialData, onSave, onCancel, onDeleteAttachment }) => {
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [content, setContent] = useState(initialData?.content || '');
+  const [date, setDate] = useState(initialData?.date || new Date().toISOString());
+  const [mood, setMood] = useState(initialData?.mood || '');
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(initialData?.checklist || []);
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSave = async () => {
+      setIsSaving(true);
+      try { await onSave({ title, content, date, mood, files: pendingFiles, checklist }); } 
+      finally { setIsSaving(false); }
+  };
+
+  const handleAddChecklist = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newChecklistItem.trim()) {
+          setChecklist([...checklist, { text: newChecklistItem.trim(), checked: false }]);
+          setNewChecklistItem('');
+      }
+  };
+
+  return (
+      <div className="fixed inset-0 z-50 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-slide-up">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-4 py-4 md:px-8 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20">
+              <button onClick={onCancel} className="p-2 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors">
+                  <X className="w-6 h-6" />
+              </button>
+              <div className="flex items-center gap-4">
+                  <button 
+                     onClick={() => fileInputRef.current?.click()}
+                     className="p-2 rounded-full bg-surface-50 hover:bg-brand-50 text-surface-500 hover:text-brand-600 transition-colors"
+                  >
+                      <Paperclip className="w-5 h-5" />
+                  </button>
+                  <Button onClick={handleSave} disabled={isSaving || (!title && !content)} className="!py-2 !px-6 !rounded-xl text-sm">
+                      {isSaving ? 'Saving...' : 'Save'}
+                  </Button>
+              </div>
+          </div>
+
+          {/* Editor Canvas */}
+          <div className="flex-1 overflow-y-auto bg-surface-50/50 dark:bg-black/20">
+              <div className="max-w-3xl mx-auto my-8 md:my-12 bg-white dark:bg-surface-900 min-h-[80vh] md:rounded-[2rem] shadow-soft p-8 md:p-16 relative">
+                  
+                  {/* Header Info */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-6 border-b border-dashed border-surface-200 dark:border-surface-700">
+                      <div className="relative cursor-pointer group" onClick={() => dateInputRef.current?.showPicker()}>
+                          <span className="text-sm font-bold text-brand-500 uppercase tracking-widest mb-1 block">Date</span>
+                          <div className="text-2xl font-display font-bold text-surface-800 dark:text-surface-200 flex items-center gap-2 group-hover:text-brand-600 transition-colors">
+                              {new Date(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                              <Edit3 className="w-4 h-4 opacity-0 group-hover:opacity-50" />
+                          </div>
+                          <input ref={dateInputRef} type="date" value={date.split('T')[0]} onChange={e => setDate(new Date(e.target.value).toISOString())} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      </div>
+
+                      {/* Mood Selector */}
+                      <div className="flex gap-2 overflow-x-auto py-2 hide-scrollbar">
+                          {MOODS.map(m => (
+                              <button 
+                                  key={m.id} 
+                                  onClick={() => setMood(m.id)}
+                                  className={`p-3 text-2xl rounded-2xl transition-all hover:scale-110 ${mood === m.id ? 'bg-surface-100 dark:bg-surface-800 scale-110 shadow-sm ring-2 ring-brand-200' : 'opacity-50 hover:opacity-100'}`}
+                              >
+                                  {m.emoji}
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+
+                  {/* Inputs */}
+                  <input 
+                      placeholder="Title of your memory..."
+                      value={title}
+                      onChange={e => setTitle(e.target.value)}
+                      className="w-full text-4xl md:text-5xl font-display font-bold bg-transparent border-none outline-none placeholder:text-surface-300 text-surface-900 dark:text-white mb-8"
+                  />
+
+                  <TextArea 
+                      placeholder="Start writing..."
+                      value={content}
+                      onChange={e => setContent(e.target.value)}
+                      className="min-h-[40vh] text-xl leading-loose font-serif text-surface-700 dark:text-surface-300 !px-0"
+                  />
+
+                  {/* Checklist */}
+                  <div className="mt-12 bg-surface-50 dark:bg-surface-800/30 rounded-3xl p-6">
+                      <h4 className="font-bold text-surface-400 text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                          <CheckSquare className="w-4 h-4" /> Checklist
+                      </h4>
+                      <div className="space-y-3">
+                          {checklist.map((item, i) => (
+                              <div key={i} className="flex items-center gap-3 group">
+                                  <button onClick={() => {
+                                      const n = [...checklist]; n[i].checked = !n[i].checked; setChecklist(n);
+                                  }}>
+                                      {item.checked ? <CheckSquare className="text-brand-500 w-5 h-5" /> : <Square className="text-surface-300 w-5 h-5" />}
+                                  </button>
+                                  <span className={`flex-1 font-medium ${item.checked ? 'line-through text-surface-400' : 'text-surface-700 dark:text-surface-200'}`}>{item.text}</span>
+                                  <button onClick={() => setChecklist(checklist.filter((_, idx) => idx !== i))} className="text-surface-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <X className="w-4 h-4" />
+                                  </button>
+                              </div>
+                          ))}
+                          <form onSubmit={handleAddChecklist} className="flex gap-2 mt-4">
+                              <Input value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Add item..." className="!py-2 !bg-white dark:!bg-surface-800 text-sm" />
+                              <Button type="submit" variant="secondary" className="!py-2 !px-4 !rounded-xl text-sm">Add</Button>
+                          </form>
+                      </div>
+                  </div>
+
+                  {/* Attachments Preview */}
+                  {(pendingFiles.length > 0 || (initialData?.attachments?.length ?? 0) > 0) && (
+                      <div className="mt-12 grid grid-cols-3 md:grid-cols-4 gap-4">
+                          {pendingFiles.map((f, i) => (
+                              <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-100">
+                                  <img src={URL.createObjectURL(f)} className="w-full h-full object-cover opacity-80" />
+                                  <button onClick={() => setPendingFiles(p => p.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full">
+                                      <X className="w-3 h-3" />
+                                  </button>
+                              </div>
+                          ))}
+                          {initialData?.attachments?.map(att => (
+                              <div key={att.id} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-100 group">
+                                  <SecureImage fileId={att.id} thumbnailUrl={att.thumbnailLink} alt="" className="w-full h-full object-cover" />
+                                  <button onClick={() => onDeleteAttachment && onDeleteAttachment(att.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Trash2 className="w-3 h-3" />
+                                  </button>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+                  <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={e => e.target.files && setPendingFiles(p => [...p, ...Array.from(e.target.files!)])} />
+              </div>
+          </div>
+      </div>
+  );
+};
+
+const EntryReaderView: React.FC<{
+    entry: JournalEntry;
+    onBack: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+    isLoading: boolean;
+  }> = ({ entry, onBack, onEdit, onDelete, isLoading }) => {
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    
+    if (isLoading || !entry) return <LoadingScreen message="Opening..." />;
+
+    const moodObj = MOODS.find(m => m.id === entry.mood);
+  
+    return (
+      <div className="fixed inset-0 z-40 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-scale-in origin-center">
+        <div className="flex items-center justify-between px-4 py-4 md:px-8 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20">
+             <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-600 dark:text-surface-300 font-medium">
+                 <ChevronLeft className="w-5 h-5" /> Back
+             </button>
+             <div className="flex items-center gap-2">
+                 <button onClick={onEdit} className="p-2 text-brand-600 hover:bg-brand-50 rounded-full transition-colors"><Edit3 className="w-5 h-5" /></button>
+                 <button onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"><Trash2 className="w-5 h-5" /></button>
+             </div>
+        </div>
+  
+        <div className="flex-1 overflow-y-auto bg-surface-50/50 dark:bg-black/20">
+            <article className="max-w-3xl mx-auto my-8 md:my-12 bg-white dark:bg-surface-900 min-h-[80vh] md:rounded-[2rem] shadow-soft overflow-hidden">
+                {/* Hero Image */}
+                {(entry.coverImageId || entry.coverImage) && (
+                    <div className="w-full h-64 md:h-80 relative">
+                        <SecureImage fileId={entry.coverImageId} thumbnailUrl={entry.coverImage} fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s1200')} alt="Cover" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    </div>
+                )}
+                
+                <div className="p-8 md:p-16 relative">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-8">
+                        <div>
+                            <span className="text-brand-600 font-bold tracking-widest text-xs uppercase mb-2 block">
+                                {new Date(entry.date).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            </span>
+                            <h1 className="text-4xl md:text-5xl font-display font-bold text-surface-900 dark:text-white leading-tight">
+                                {entry.title || "Untitled"}
+                            </h1>
+                        </div>
+                        {moodObj && <div className="text-4xl bg-surface-50 dark:bg-surface-800 p-3 rounded-2xl shadow-sm">{moodObj.emoji}</div>}
+                    </div>
+  
+                    {/* Content */}
+                    <div className="prose dark:prose-invert prose-xl prose-p:text-surface-600 dark:prose-p:text-surface-300 prose-p:font-serif prose-headings:font-display mb-12">
+                        {entry.content.split('\n').map((p, i) => <p key={i}>{p}</p>)}
+                    </div>
+
+                    {/* Checklist */}
+                    {entry.checklist && entry.checklist.length > 0 && (
+                        <div className="bg-brand-50/50 dark:bg-brand-900/10 rounded-3xl p-8 mb-12 border border-brand-100 dark:border-brand-900/20">
+                             <h4 className="font-bold text-brand-400 text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <CheckSquare className="w-4 h-4" /> Checklist
+                             </h4>
+                             <div className="space-y-3">
+                                 {entry.checklist.map((item, i) => (
+                                     <div key={i} className="flex items-center gap-3">
+                                         {item.checked ? <CheckSquare className="text-brand-500 w-5 h-5" /> : <Square className="text-brand-300 w-5 h-5" />}
+                                         <span className={`font-medium ${item.checked ? 'line-through text-brand-400' : 'text-surface-700 dark:text-surface-200'}`}>{item.text}</span>
+                                     </div>
+                                 ))}
+                             </div>
+                        </div>
+                    )}
+  
+                    {/* Gallery */}
+                    {entry.attachments && entry.attachments.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {entry.attachments.map(att => (
+                                <div key={att.id} onClick={() => setLightboxUrl(att.webViewLink)} className="aspect-square rounded-2xl overflow-hidden bg-surface-100 cursor-zoom-in hover:opacity-90 transition-opacity">
+                                    <SecureImage fileId={att.id} thumbnailUrl={att.thumbnailLink} alt="" className="w-full h-full object-cover" />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </article>
+        </div>
+
+        {/* Lightbox */}
+        {lightboxUrl && (
+             <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 animate-in fade-in" onClick={() => setLightboxUrl(null)}>
+                 <img src={lightboxUrl} className="max-w-full max-h-full rounded-lg shadow-2xl" />
+                 <button className="absolute top-4 right-4 text-white bg-white/20 p-2 rounded-full hover:bg-white/30"><X /></button>
+             </div>
+        )}
+      </div>
+    );
+  };
+
+// --- Main App ---
+
+const App: React.FC = () => {
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [view, setView] = useState<ViewState>({ type: 'SETUP' });
+  const [config, setConfig] = useState<GoogleConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeEntryData, setActiveEntryData] = useState<JournalEntry | undefined>(undefined);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_CONFIG_KEY);
+    if (saved) {
+        const cfg = JSON.parse(saved);
+        setConfig(cfg);
+        initializeDrive(cfg);
+    } else {
+        setView({ type: 'SETUP' });
+    }
+  }, []);
+
+  const initializeDrive = async (cfg: GoogleConfig) => {
+    setIsLoading(true);
+    try {
+        await DriveService.init(cfg);
+        if (DriveService.restoreSession()) await refreshEntries();
+        else setView({ type: 'LOGIN' });
+    } catch (e) {
+        console.error(e);
+        setView({ type: 'SETUP' });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const refreshEntries = async () => {
+    setIsLoading(true);
+    try {
+        const list = await DriveService.listEntries();
+        setEntries(list);
+        setView({ type: 'LIST' });
+    } catch(e) { console.error(e); } 
+    finally { setIsLoading(false); }
+  };
+
+  const handleReadEntry = async (id: string) => {
+      setIsLoading(true);
+      setView({ type: 'READ', id });
+      const meta = entries.find(e => e.id === id);
+      if(meta) {
+          try {
+              const content = await DriveService.getEntryContent(id);
+              // Update cover image logic if missing
+              if(content.attachments.length > 0 && !meta.coverImageId) {
+                  DriveService.updateCoverImage(id, content.attachments[0].id, content.attachments[0].thumbnailLink);
+                  const updated = { ...meta, ...content, coverImageId: content.attachments[0].id, coverImage: content.attachments[0].thumbnailLink };
+                  setActiveEntryData(updated);
+                  setEntries(prev => prev.map(e => e.id === id ? updated : e));
+              } else {
+                  setActiveEntryData({ ...meta, ...content });
+              }
+          } catch(e) { console.error(e); }
+      }
+      setIsLoading(false);
+  };
+
+  const handleSaveEntry = async (data: any, isUpdate = false) => {
+      const base = isUpdate && activeEntryData ? activeEntryData : { id: '', updatedAt: '' };
+      const entry: JournalEntry = { ...base, ...data, updatedAt: new Date().toISOString() };
+      
+      try {
+          const res = await DriveService.saveEntry(entry, data.files);
+          const finalEntry = { ...entry, id: res.id, coverImageId: res.coverImageId, coverImage: res.coverImage };
+          
+          if(isUpdate) {
+               setEntries(p => p.map(e => e.id === entry.id ? finalEntry : e));
+               setActiveEntryData(finalEntry);
+               setView({ type: 'READ', id: entry.id });
+          } else {
+               setEntries(p => [finalEntry, ...p]);
+               setView({ type: 'LIST' });
+               setTimeout(refreshEntries, 1000);
+          }
+      } catch(e) { alert("Save failed"); console.error(e); }
+  };
+
+  const handleDelete = async (id: string) => {
+      if(!confirm("Delete this memory forever?")) return;
+      await DriveService.deleteEntry(id);
+      setEntries(p => p.filter(e => e.id !== id));
+      setView({ type: 'LIST' });
+  };
+
+  const handleSignOut = () => {
+      DriveService.signOut();
+      setView({ type: 'LOGIN' });
+  };
+
+  // View Router
+  const renderView = () => {
+      switch(view.type) {
+          case 'SETUP': return <SetupView onComplete={(cfg) => { localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(cfg)); setConfig(cfg); initializeDrive(cfg); }} />;
+          case 'LOGIN': return <LoginView onLogin={() => DriveService.signIn().then(refreshEntries)} onReset={() => { localStorage.removeItem(STORAGE_CONFIG_KEY); setView({ type: 'SETUP' }); }} />;
+          case 'LIST': 
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    <Sidebar 
+                      activeView="LIST" 
+                      onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
+                      onToggleTheme={() => setDarkMode(!darkMode)} 
+                      isDark={darkMode} 
+                      onSignOut={handleSignOut} 
+                    />
+                    <EntryListView entries={entries} onSelect={handleReadEntry} onCreate={() => setView({type: 'CREATE'})} searchTerm={searchTerm} onSearchChange={setSearchTerm} isLoading={isLoading} />
+                    <MobileNav 
+                      onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
+                      activeView="LIST" 
+                    />
+                </div>
+            );
+          case 'CREATE': 
+             return <EntryEditorView onSave={d => handleSaveEntry(d, false)} onCancel={() => setView({type: 'LIST'})} />;
+          case 'EDIT': 
+             return <EntryEditorView initialData={activeEntryData} onSave={d => handleSaveEntry(d, true)} onCancel={() => setView({type: 'READ', id: activeEntryData!.id})} onDeleteAttachment={async (aid) => { 
+                 if(!confirm("Delete image?")) return; 
+                 await DriveService.deleteFile(aid); 
+                 setActiveEntryData(p => p ? ({...p, attachments: p.attachments?.filter(a => a.id !== aid)}) : undefined); 
+             }} />;
+          case 'READ': 
+             return <EntryReaderView entry={activeEntryData!} onBack={() => setView({type: 'LIST'})} onEdit={() => setView({type: 'EDIT', id: activeEntryData!.id})} onDelete={() => handleDelete(activeEntryData!.id)} isLoading={isLoading} />;
+          default: return null;
+      }
+  };
+
+  return (
+    <div className="antialiased">
+        {renderView()}
+    </div>
+  );
+};
+
+export default App;

@@ -1,0 +1,5 @@
+{
+  "name": "My Diaries",
+  "description": "A private, offline-first personal journaling application. Securely stores entries in your browser.",
+  "requestFramePermissions": []
+}
