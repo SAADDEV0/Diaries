@@ -133,6 +133,14 @@ const SetupView: React.FC<{ onComplete: (config: GoogleConfig) => void }> = ({ o
   const [clientId, setClientId] = useState('');
   const [apiKey, setApiKey] = useState('');
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onComplete({ 
+        clientId: clientId.trim(), 
+        apiKey: apiKey.trim() 
+    });
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-surface-50 dark:bg-surface-950">
       <div className="max-w-md w-full bg-white dark:bg-surface-900 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-brand-900/5 border border-surface-100 dark:border-surface-800">
@@ -145,14 +153,33 @@ const SetupView: React.FC<{ onComplete: (config: GoogleConfig) => void }> = ({ o
         <p className="text-center text-surface-500 mb-10 leading-relaxed">
           Connect your Google Cloud credentials to enable secure, private syncing.
         </p>
-        <form onSubmit={(e) => { e.preventDefault(); onComplete({ clientId, apiKey }); }} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 ml-1">Client ID</label>
-            <Input value={clientId} onChange={e => setClientId(e.target.value)} placeholder="xxx.apps.googleusercontent.com" required />
+            <Input 
+                value={clientId} 
+                onChange={e => setClientId(e.target.value)} 
+                placeholder="xxx.apps.googleusercontent.com" 
+                required
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+            />
+            <p className="text-xs text-surface-400 mt-2 ml-1 leading-relaxed">
+               Add <strong>{window.location.origin}</strong> to "Authorized JavaScript origins" in Google Cloud Console.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 ml-1">API Key</label>
-            <Input value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="AIzaSy..." required />
+            <Input 
+                value={apiKey} 
+                onChange={e => setApiKey(e.target.value)} 
+                placeholder="AIzaSy..." 
+                required 
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+            />
           </div>
           <Button type="submit" className="w-full !py-4 text-lg shadow-xl shadow-brand-500/20">Connect</Button>
         </form>
