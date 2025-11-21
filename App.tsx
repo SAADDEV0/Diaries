@@ -302,20 +302,26 @@ const EntryListView: React.FC<{
   isLoading: boolean;
 }> = ({ entries, onSelect, onCreate, searchTerm, onSearchChange, isLoading }) => {
   
+  const [selectedMood, setSelectedMood] = useState<string | null>(null);
+
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return entries.filter(e => 
-      e.title.toLowerCase().includes(term) || 
+    return entries.filter(e => {
+      const matchesSearch = e.title.toLowerCase().includes(term) || 
       new Date(e.date).toLocaleDateString().includes(term) ||
-      (e.mood && e.mood.toLowerCase().includes(term))
-    );
-  }, [entries, searchTerm]);
+      (e.mood && e.mood.toLowerCase().includes(term));
+      
+      const matchesMood = selectedMood ? e.mood === selectedMood : true;
+
+      return matchesSearch && matchesMood;
+    });
+  }, [entries, searchTerm, selectedMood]);
 
   if (isLoading && entries.length === 0) return <LoadingScreen message="Syncing..." />;
 
   return (
     <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-4 md:px-10 pt-4 md:pt-12 no-scrollbar">
-       <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-10 gap-4 sticky top-0 bg-[#F8F9FC] dark:bg-[#121214] z-30 py-2 md:static md:bg-transparent md:py-0">
+       <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 sticky top-0 bg-[#F8F9FC] dark:bg-[#121214] z-30 py-2 md:static md:bg-transparent md:py-0">
            <div>
                <h2 className="text-3xl md:text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
                <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
@@ -331,6 +337,34 @@ const EntryListView: React.FC<{
                />
            </div>
        </header>
+
+       {/* Mood Filter */}
+       <div className="flex gap-3 overflow-x-auto pb-4 mb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x">
+           <button 
+               onClick={() => setSelectedMood(null)}
+               className={`flex-shrink-0 snap-start px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${
+                   selectedMood === null 
+                   ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-lg scale-105' 
+                   : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800'
+               }`}
+           >
+               All
+           </button>
+           {MOODS.map(m => (
+               <button 
+                   key={m.id}
+                   onClick={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
+                   className={`flex-shrink-0 snap-start px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+                       selectedMood === m.id 
+                       ? `${m.color} shadow-lg scale-105 ring-1 ring-black/5` 
+                       : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800 grayscale hover:grayscale-0'
+                   }`}
+               >
+                   <span className="text-lg">{m.emoji}</span>
+                   <span>{m.label}</span>
+               </button>
+           ))}
+       </div>
 
        {filteredEntries.length === 0 ? (
            <div className="flex flex-col items-center justify-center py-20 opacity-60">
