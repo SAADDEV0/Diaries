@@ -10,7 +10,9 @@ import { DriveService } from './services/driveService';
 import { Button, Input, TextArea, Card, Modal } from './components/Components';
 
 // --- Constants ---
-const STORAGE_CONFIG_KEY = 'mindflow_drive_config';
+// Hardcoded Credentials as requested
+const GOOGLE_CLIENT_ID = "111426887413-md2gvq2djc7p7qqgp57p5v0s1eichp8b.apps.googleusercontent.com";
+const GOOGLE_API_KEY = "AIzaSyA7EBoWEqbAYkTdCDKsm3kD-6vL21CdRkY";
 
 const MOODS = [
   { id: 'happy', emoji: '🥰', label: 'Happy', color: 'bg-pink-100 text-pink-600' },
@@ -129,66 +131,7 @@ const SecureImage = ({
 
 // --- Views ---
 
-const SetupView: React.FC<{ onComplete: (config: GoogleConfig) => void }> = ({ onComplete }) => {
-  const [clientId, setClientId] = useState('');
-  const [apiKey, setApiKey] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onComplete({ 
-        clientId: clientId.trim(), 
-        apiKey: apiKey.trim() 
-    });
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface-50 dark:bg-surface-950">
-      <div className="max-w-md w-full bg-white dark:bg-surface-900 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-brand-900/5 border border-surface-100 dark:border-surface-800">
-        <div className="flex justify-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-brand-400 to-brand-600 rounded-3xl flex items-center justify-center shadow-lg shadow-brand-500/30 rotate-6">
-            <Settings className="text-white w-10 h-10" />
-          </div>
-        </div>
-        <h2 className="text-3xl font-display font-bold text-center mb-3 text-surface-900 dark:text-white">Setup Drive</h2>
-        <p className="text-center text-surface-500 mb-10 leading-relaxed">
-          Connect your Google Cloud credentials to enable secure, private syncing.
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 ml-1">Client ID</label>
-            <Input 
-                value={clientId} 
-                onChange={e => setClientId(e.target.value)} 
-                placeholder="xxx.apps.googleusercontent.com" 
-                required
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-            />
-            <p className="text-xs text-surface-400 mt-2 ml-1 leading-relaxed">
-               Add <strong>{window.location.origin}</strong> to "Authorized JavaScript origins" in Google Cloud Console.
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-surface-700 dark:text-surface-300 mb-2 ml-1">API Key</label>
-            <Input 
-                value={apiKey} 
-                onChange={e => setApiKey(e.target.value)} 
-                placeholder="AIzaSy..." 
-                required 
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-            />
-          </div>
-          <Button type="submit" className="w-full !py-4 text-lg shadow-xl shadow-brand-500/20">Connect</Button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const LoginView: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ onLogin, onReset }) => (
+const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => (
   <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-surface-50 dark:bg-surface-950 text-center">
      {/* Abstract Background Shapes */}
      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-200/30 dark:bg-brand-900/10 rounded-full blur-3xl animate-float"></div>
@@ -211,9 +154,14 @@ const LoginView: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ onL
             <LogIn className="w-6 h-6 mr-3" />
             Sign in with Google
             </Button>
-            <Button onClick={onReset} variant="ghost" className="w-full">
-            Reset Configuration
-            </Button>
+        </div>
+
+        <div className="mt-8 p-4 bg-white/50 dark:bg-surface-900/50 rounded-xl border border-surface-200 dark:border-surface-800 text-xs text-surface-500">
+            <p className="mb-2 font-bold">Mobile Login Issues?</p>
+            <p>Ensure this URL is in your Google Cloud "Authorized JavaScript origins":</p>
+            <code className="block mt-2 p-2 bg-surface-100 dark:bg-surface-950 rounded select-all font-mono text-brand-600">
+                {window.location.origin}
+            </code>
         </div>
     </div>
   </div>
@@ -646,8 +594,8 @@ const EntryReaderView: React.FC<{
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [view, setView] = useState<ViewState>({ type: 'SETUP' });
-  const [config, setConfig] = useState<GoogleConfig | null>(null);
+  // Start directly in LOGIN or LIST depending on drive init status, skip SETUP
+  const [view, setView] = useState<ViewState>({ type: 'LOGIN' }); 
   const [isLoading, setIsLoading] = useState(false);
   const [activeEntryData, setActiveEntryData] = useState<JournalEntry | undefined>(undefined);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -659,14 +607,12 @@ const App: React.FC = () => {
   }, [darkMode]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_CONFIG_KEY);
-    if (saved) {
-        const cfg = JSON.parse(saved);
-        setConfig(cfg);
-        initializeDrive(cfg);
-    } else {
-        setView({ type: 'SETUP' });
-    }
+      // Initialize Immediately with hardcoded creds
+      const cfg: GoogleConfig = {
+          clientId: GOOGLE_CLIENT_ID,
+          apiKey: GOOGLE_API_KEY
+      };
+      initializeDrive(cfg);
   }, []);
 
   const initializeDrive = async (cfg: GoogleConfig) => {
@@ -677,7 +623,8 @@ const App: React.FC = () => {
         else setView({ type: 'LOGIN' });
     } catch (e) {
         console.error(e);
-        setView({ type: 'SETUP' });
+        // If init fails, likely script load error or invalid format, but we stay on Login
+        setView({ type: 'LOGIN' });
     } finally {
         setIsLoading(false);
     }
@@ -749,8 +696,8 @@ const App: React.FC = () => {
   // View Router
   const renderView = () => {
       switch(view.type) {
-          case 'SETUP': return <SetupView onComplete={(cfg) => { localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(cfg)); setConfig(cfg); initializeDrive(cfg); }} />;
-          case 'LOGIN': return <LoginView onLogin={() => DriveService.signIn().then(refreshEntries)} onReset={() => { localStorage.removeItem(STORAGE_CONFIG_KEY); setView({ type: 'SETUP' }); }} />;
+          case 'LOGIN': return <LoginView onLogin={() => DriveService.signIn().then(refreshEntries)} />;
+          // Setup case removed as it's handled automatically
           case 'LIST': 
             return (
                 <div className="flex h-screen overflow-hidden">
