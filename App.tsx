@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, Search, Book, Calendar, Moon, Sun, ChevronLeft, 
@@ -133,7 +132,7 @@ const SecureImage = ({
 // --- Views ---
 
 const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => (
-  <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-surface-50 dark:bg-surface-950 text-center">
+  <div className="min-h-[100dvh] flex flex-col items-center justify-center p-6 bg-surface-50 dark:bg-surface-950 text-center overflow-hidden">
      {/* Abstract Background Shapes */}
      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-200/30 dark:bg-brand-900/10 rounded-full blur-3xl animate-float"></div>
      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-200/30 dark:bg-blue-900/10 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
@@ -160,7 +159,7 @@ const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => (
         <div className="mt-8 p-4 bg-white/50 dark:bg-surface-900/50 rounded-xl border border-surface-200 dark:border-surface-800 text-xs text-surface-500">
             <p className="mb-2 font-bold">Mobile Login Issues?</p>
             <p>Ensure this URL is in your Google Cloud "Authorized JavaScript origins":</p>
-            <code className="block mt-2 p-2 bg-surface-100 dark:bg-surface-950 rounded select-all font-mono text-brand-600">
+            <code className="block mt-2 p-2 bg-surface-100 dark:bg-surface-950 rounded select-all font-mono text-brand-600 break-all">
                 {window.location.origin}
             </code>
         </div>
@@ -182,7 +181,7 @@ const Sidebar = ({
     onSignOut: () => void
 }) => {
     return (
-        <div className="hidden md:flex flex-col w-80 h-screen sticky top-0 p-6 bg-[#F8F9FC] dark:bg-[#121214]">
+        <div className="hidden md:flex flex-col w-80 h-full sticky top-0 p-6 bg-[#F8F9FC] dark:bg-[#121214]">
             <div className="flex items-center gap-3 mb-12 px-4">
                 <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
                     <BookHeart className="w-6 h-6" />
@@ -220,8 +219,8 @@ const Sidebar = ({
 };
 
 const MobileNav = ({ onChangeView, activeView }: { onChangeView: (v: ViewState['type']) => void, activeView: ViewState['type'] }) => (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl border-t border-surface-100 dark:border-surface-800 pb-safe z-40">
-        <div className="flex justify-between items-center px-6 py-3">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-surface-900/90 backdrop-blur-xl border-t border-surface-100 dark:border-surface-800 pb-safe-bottom z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]">
+        <div className="flex justify-between items-end px-8 pt-2 pb-4">
              <button 
                 onClick={() => onChangeView('LIST')} 
                 className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-colors ${activeView === 'LIST' ? 'text-brand-600 dark:text-brand-400' : 'text-surface-400'}`}
@@ -232,9 +231,9 @@ const MobileNav = ({ onChangeView, activeView }: { onChangeView: (v: ViewState['
 
              <button 
                 onClick={() => onChangeView('CREATE')}
-                className="transform -translate-y-6 bg-brand-600 text-white p-4 rounded-full shadow-glow hover:scale-105 transition-all active:scale-95"
+                className="transform -translate-y-6 bg-brand-600 text-white w-16 h-16 rounded-full shadow-glow hover:scale-105 transition-all active:scale-95 flex items-center justify-center border-4 border-[#F8F9FC] dark:border-[#121214]"
              >
-                 <Plus className="w-7 h-7" />
+                 <Plus className="w-8 h-8" />
              </button>
 
              <button 
@@ -254,14 +253,14 @@ const MobileSettingsView: React.FC<{
     onToggleTheme: () => void;
     onSignOut: () => void;
 }> = ({ onBack, isDark, onToggleTheme, onSignOut }) => (
-    <div className="fixed inset-0 bg-[#F8F9FC] dark:bg-[#121214] z-50 animate-slide-up flex flex-col">
-        <header className="bg-white dark:bg-surface-900 px-6 py-4 flex items-center gap-4 shadow-sm border-b border-surface-100 dark:border-surface-800">
+    <div className="fixed inset-0 bg-[#F8F9FC] dark:bg-[#121214] z-50 animate-slide-up flex flex-col h-[100dvh]">
+        <header className="bg-white dark:bg-surface-900 px-6 py-4 flex items-center gap-4 shadow-sm border-b border-surface-100 dark:border-surface-800 pt-safe-top">
              <button onClick={onBack} className="p-2 -ml-2 text-surface-600 dark:text-surface-300">
                  <ChevronLeft className="w-6 h-6" />
              </button>
              <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white">Settings</h2>
         </header>
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
              <div className="bg-white dark:bg-surface-900 rounded-3xl p-6 shadow-soft border border-surface-50 dark:border-surface-800">
                  <div className="flex items-center justify-between">
                      <div className="flex items-center gap-4">
@@ -286,7 +285,7 @@ const MobileSettingsView: React.FC<{
              </button>
 
              <div className="text-center text-surface-400 text-sm mt-10">
-                 <p>My Diaries v1.0</p>
+                 <p>My Diaries v1.1</p>
                  <p className="text-xs mt-1 opacity-60">Synced with Google Drive</p>
              </div>
         </div>
@@ -320,51 +319,57 @@ const EntryListView: React.FC<{
   if (isLoading && entries.length === 0) return <LoadingScreen message="Syncing..." />;
 
   return (
-    <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-4 md:px-10 pt-4 md:pt-12 no-scrollbar">
-       <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 sticky top-0 bg-[#F8F9FC] dark:bg-[#121214] z-30 py-2 md:static md:bg-transparent md:py-0">
-           <div>
-               <h2 className="text-3xl md:text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
-               <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
+    <div className="flex-1 h-[100dvh] overflow-y-auto px-4 md:px-10 pb-safe-bottom no-scrollbar">
+       {/* Sticky Header with Blur */}
+       <header className="sticky top-0 z-30 pt-safe-top bg-[#F8F9FC]/95 dark:bg-[#121214]/95 backdrop-blur-xl -mx-4 px-4 md:mx-0 md:px-0 transition-all pb-2 border-b border-transparent md:bg-transparent md:backdrop-blur-none md:static md:border-none md:pt-12">
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 md:mb-6 pt-4 md:pt-0">
+               <div className="flex justify-between items-center">
+                   <div>
+                        <h2 className="text-3xl md:text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
+                        <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
+                   </div>
+               </div>
+               
+               <div className="relative w-full md:w-72 group">
+                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 group-focus-within:text-brand-500 transition-colors" />
+                   <input 
+                     type="text" 
+                     placeholder="Search..."
+                     value={searchTerm}
+                     onChange={(e) => onSearchChange(e.target.value)}
+                     className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm text-base"
+                   />
+               </div>
            </div>
-           <div className="relative w-full md:w-72 group">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 group-focus-within:text-brand-500 transition-colors" />
-               <input 
-                 type="text" 
-                 placeholder="Search..."
-                 value={searchTerm}
-                 onChange={(e) => onSearchChange(e.target.value)}
-                 className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-transparent focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm"
-               />
-           </div>
-       </header>
 
-       {/* Mood Filter */}
-       <div className="flex gap-3 overflow-x-auto pb-4 mb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x">
-           <button 
-               onClick={() => setSelectedMood(null)}
-               className={`flex-shrink-0 snap-start px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${
-                   selectedMood === null 
-                   ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-lg scale-105' 
-                   : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800'
-               }`}
-           >
-               All
-           </button>
-           {MOODS.map(m => (
+           {/* Mood Filter (Sticky on mobile) */}
+           <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar snap-x mask-linear-fade">
                <button 
-                   key={m.id}
-                   onClick={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
-                   className={`flex-shrink-0 snap-start px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
-                       selectedMood === m.id 
-                       ? `${m.color} shadow-lg scale-105 ring-1 ring-black/5` 
-                       : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800 grayscale hover:grayscale-0'
+                   onClick={() => setSelectedMood(null)}
+                   className={`flex-shrink-0 snap-start px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                       selectedMood === null 
+                       ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-lg scale-105' 
+                       : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800'
                    }`}
                >
-                   <span className="text-lg">{m.emoji}</span>
-                   <span>{m.label}</span>
+                   All
                </button>
-           ))}
-       </div>
+               {MOODS.map(m => (
+                   <button 
+                       key={m.id}
+                       onClick={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
+                       className={`flex-shrink-0 snap-start px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+                           selectedMood === m.id 
+                           ? `${m.color} shadow-lg scale-105 ring-1 ring-black/5` 
+                           : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800 grayscale hover:grayscale-0'
+                       }`}
+                   >
+                       <span className="text-lg">{m.emoji}</span>
+                       <span>{m.label}</span>
+                   </button>
+               ))}
+           </div>
+       </header>
 
        {filteredEntries.length === 0 ? (
            <div className="flex flex-col items-center justify-center py-20 opacity-60">
@@ -375,7 +380,7 @@ const EntryListView: React.FC<{
                <Button variant="ghost" onClick={onCreate} className="mt-4 md:hidden">Create one now</Button>
            </div>
        ) : (
-           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-10">
+           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-32 md:pb-10">
                {filteredEntries.map((entry, idx) => {
                    const dateObj = new Date(entry.date);
                    const day = dateObj.getDate();
@@ -386,7 +391,7 @@ const EntryListView: React.FC<{
                        <div 
                           key={entry.id} 
                           onClick={() => onSelect(entry.id)}
-                          className="group relative bg-white dark:bg-surface-900 rounded-3xl md:rounded-[2rem] p-4 md:p-5 shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-surface-50 dark:border-surface-800/50 animate-slide-up fill-mode-backwards flex flex-col h-64"
+                          className="group relative bg-white dark:bg-surface-900 rounded-3xl md:rounded-[2rem] p-4 md:p-5 shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-surface-50 dark:border-surface-800/50 animate-slide-up fill-mode-backwards flex flex-col min-h-[200px] md:h-64 active:scale-[0.98]"
                           style={{ animationDelay: `${idx * 50}ms` }}
                        >
                            {/* Date Badge */}
@@ -414,7 +419,7 @@ const EntryListView: React.FC<{
                                    />
                                ) : (
                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-50 to-surface-100 dark:from-surface-800 dark:to-surface-800/50">
-                                       <p className="font-serif italic text-surface-400 text-sm p-6 text-center line-clamp-4">
+                                       <p className="font-serif italic text-surface-400 text-sm p-6 text-center line-clamp-4 leading-relaxed">
                                            {entry.content.substring(0, 100)}...
                                        </p>
                                    </div>
@@ -476,9 +481,9 @@ const EntryEditorView: React.FC<{
   };
 
   return (
-      <div className="fixed inset-0 z-50 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-slide-up">
+      <div className="fixed inset-0 z-50 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-slide-up h-[100dvh]">
           {/* Toolbar */}
-          <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20 sticky top-0">
+          <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20 sticky top-0 pt-safe-top">
               <button onClick={onCancel} className="p-2 -ml-2 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors">
                   <X className="w-6 h-6" />
               </button>
@@ -489,15 +494,15 @@ const EntryEditorView: React.FC<{
                   >
                       <Paperclip className="w-5 h-5" />
                   </button>
-                  <Button onClick={handleSave} disabled={isSaving || (!title && !content)} className="!py-2 !px-4 md:!px-6 !rounded-xl text-sm">
+                  <Button onClick={handleSave} disabled={isSaving || (!title && !content)} className="!py-2 !px-4 md:!px-6 !rounded-xl text-sm font-bold">
                       {isSaving ? 'Saving...' : 'Save'}
                   </Button>
               </div>
           </div>
 
           {/* Editor Canvas */}
-          <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20">
-              <div className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-screen md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft p-6 md:p-16 relative">
+          <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20 pb-safe-bottom">
+              <div className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-full md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft p-6 md:p-16 relative pb-32 md:pb-16">
                   
                   {/* Header Info */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-10 pb-6 border-b border-dashed border-surface-200 dark:border-surface-700">
@@ -549,17 +554,17 @@ const EntryEditorView: React.FC<{
                               <div key={i} className="flex items-center gap-3 group">
                                   <button onClick={() => {
                                       const n = [...checklist]; n[i].checked = !n[i].checked; setChecklist(n);
-                                  }}>
+                                  }} className="p-1 -m-1">
                                       {item.checked ? <CheckSquare className="text-brand-500 w-5 h-5" /> : <Square className="text-surface-300 w-5 h-5" />}
                                   </button>
                                   <span className={`flex-1 font-medium ${item.checked ? 'line-through text-surface-400' : 'text-surface-700 dark:text-surface-200'}`}>{item.text}</span>
-                                  <button onClick={() => setChecklist(checklist.filter((_, idx) => idx !== i))} className="text-surface-300 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => setChecklist(checklist.filter((_, idx) => idx !== i))} className="text-surface-300 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity p-2">
                                       <X className="w-4 h-4" />
                                   </button>
                               </div>
                           ))}
                           <form onSubmit={handleAddChecklist} className="flex gap-2 mt-4">
-                              <Input value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Add item..." className="!py-2 !bg-white dark:!bg-surface-800 text-sm" />
+                              <Input value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Add item..." className="!py-3 !bg-white dark:!bg-surface-800 text-sm" />
                               <Button type="submit" variant="secondary" className="!py-2 !px-4 !rounded-xl text-sm">Add</Button>
                           </form>
                       </div>
@@ -607,8 +612,8 @@ const EntryReaderView: React.FC<{
     const moodObj = MOODS.find(m => m.id === entry.mood);
   
     return (
-      <div className="fixed inset-0 z-40 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-scale-in origin-center">
-        <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20 sticky top-0">
+      <div className="fixed inset-0 z-40 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-scale-in origin-center h-[100dvh]">
+        <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20 sticky top-0 pt-safe-top">
              <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-600 dark:text-surface-300 font-medium -ml-2">
                  <ChevronLeft className="w-5 h-5" /> Back
              </button>
@@ -618,8 +623,8 @@ const EntryReaderView: React.FC<{
              </div>
         </div>
   
-        <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20">
-            <article className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-screen md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft overflow-hidden">
+        <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20 pb-safe-bottom">
+            <article className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-full md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft overflow-hidden">
                 {/* Hero Image */}
                 {(entry.coverImageId || entry.coverImage) && (
                     <div className="w-full h-64 md:h-80 relative">
@@ -628,7 +633,7 @@ const EntryReaderView: React.FC<{
                     </div>
                 )}
                 
-                <div className="p-6 md:p-16 relative">
+                <div className="p-6 md:p-16 relative pb-32 md:pb-16">
                     {/* Header */}
                     <div className="flex justify-between items-start mb-6 md:mb-8">
                         <div className="flex-1 pr-4">
@@ -794,7 +799,7 @@ const App: React.FC = () => {
           case 'LIST': 
           case 'SETTINGS':
             return (
-                <div className="flex h-screen overflow-hidden bg-[#F8F9FC] dark:bg-[#121214]">
+                <div className="flex h-[100dvh] overflow-hidden bg-[#F8F9FC] dark:bg-[#121214]">
                     <Sidebar 
                       activeView="LIST" 
                       onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
