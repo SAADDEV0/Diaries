@@ -1,41 +1,27 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Plus, Search, Book, Calendar, Moon, Sun, ChevronLeft, 
-  Trash2, Edit3, Save, Image as ImageIcon, Loader2, LogIn, Settings,
-  Filter, LayoutGrid, X, Download, Maximize2, Smile, Paperclip, CheckSquare, Square,
-  MoreHorizontal, BookHeart, LogOut, User
+  Plus, Search, Calendar, ChevronLeft, 
+  Trash2, Edit3, Image as ImageIcon, Loader2, 
+  X, Home, User, LayoutGrid, Settings, Check
 } from 'lucide-react';
-import { JournalEntry, ViewState, JournalAttachment, GoogleConfig, ChecklistItem } from './types';
+import { JournalEntry, ViewState, GoogleConfig } from './types';
 import { DriveService } from './services/driveService';
-import { Button, Input, TextArea, Card, Modal } from './components/Components';
+import { Button, Input, TextArea, Card } from './components/Components';
 
 // --- Constants ---
-// Hardcoded Credentials as requested
 const GOOGLE_CLIENT_ID = "111426887413-md2gvq2djc7p7qqgp57p5v0s1eichp8b.apps.googleusercontent.com";
 const GOOGLE_API_KEY = "AIzaSyA7EBoWEqbAYkTdCDKsm3kD-6vL21CdRkY";
 
+// Modern, flatter mood palette
 const MOODS = [
-  { id: 'happy', emoji: '🥰', label: 'Happy', color: 'bg-pink-100 text-pink-600' },
-  { id: 'excited', emoji: '🤩', label: 'Excited', color: 'bg-yellow-100 text-yellow-600' },
-  { id: 'calm', emoji: '😌', label: 'Calm', color: 'bg-blue-100 text-blue-600' },
-  { id: 'neutral', emoji: '😐', label: 'Neutral', color: 'bg-gray-100 text-gray-600' },
-  { id: 'tired', emoji: '😴', label: 'Tired', color: 'bg-indigo-100 text-indigo-600' },
-  { id: 'sad', emoji: '😔', label: 'Sad', color: 'bg-slate-100 text-slate-600' },
-  { id: 'angry', emoji: '😤', label: 'Angry', color: 'bg-red-100 text-red-600' },
+  { id: 'awesome', emoji: '🥰', label: 'Great', bg: 'bg-accent-emerald', text: 'text-accent-emeraldText', border: 'border-accent-emerald' },
+  { id: 'happy', emoji: '🙂', label: 'Good', bg: 'bg-accent-amber', text: 'text-accent-amberText', border: 'border-accent-amber' },
+  { id: 'okay', emoji: '😐', label: 'Okay', bg: 'bg-accent-slate', text: 'text-accent-slateText', border: 'border-accent-slate' },
+  { id: 'bad', emoji: '😶‍🌫️', label: 'Off', bg: 'bg-accent-rose', text: 'text-accent-roseText', border: 'border-accent-rose' },
+  { id: 'terrible', emoji: '😫', label: 'Bad', bg: 'bg-accent-violet', text: 'text-accent-violetText', border: 'border-accent-violet' },
 ];
 
 // --- Sub-Components ---
-
-const LoadingScreen = ({ message }: { message: string }) => (
-  <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-surface-400 animate-in fade-in duration-700">
-    <div className="relative">
-      <div className="absolute inset-0 bg-brand-500 blur-3xl opacity-20 rounded-full animate-pulse"></div>
-      <Loader2 className="relative w-12 h-12 animate-spin mb-6 text-brand-500" />
-    </div>
-    <p className="font-display font-bold tracking-widest uppercase text-xs text-brand-900/40 dark:text-brand-100/40">{message}</p>
-  </div>
-);
 
 const SecureImage = ({ 
     fileId, 
@@ -54,7 +40,6 @@ const SecureImage = ({
 }) => {
     const [src, setSrc] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
         if (!fileId && !thumbnailUrl) {
@@ -64,7 +49,6 @@ const SecureImage = ({
 
         let active = true;
         setIsLoading(true);
-        setHasError(false);
 
         const loadImage = async () => {
            try {
@@ -82,15 +66,10 @@ const SecureImage = ({
               if (active && url) {
                   setSrc(url);
                   setIsLoading(false);
-              } else if (active) {
-                  throw new Error("No image source available");
               }
            } catch (err) {
                 console.warn("Failed to load secure image", err);
-                if (active) {
-                    setHasError(true);
-                    setIsLoading(false);
-                }
+                if (active) setIsLoading(false);
            }
         };
         loadImage();
@@ -107,338 +86,199 @@ const SecureImage = ({
 
     if (isLoading) {
         return (
-            <div className={`bg-surface-100 dark:bg-surface-800 flex items-center justify-center ${className}`}>
-                <Loader2 className="w-6 h-6 text-surface-300 animate-spin" />
-            </div>
-        );
-    }
-    if (hasError && !fallbackSrc) {
-         return (
-            <div className={`bg-surface-100 dark:bg-surface-800 flex items-center justify-center ${className}`}>
+            <div className={`bg-surface-100 dark:bg-surface-800 flex items-center justify-center animate-pulse ${className}`}>
                 <ImageIcon className="w-6 h-6 text-surface-300" />
             </div>
         );
     }
+    
     return (
         <img 
             src={finalSrc} 
             alt={alt} 
-            className={`${className} ${!finalSrc ? 'opacity-0' : 'opacity-100'}`}
+            className={`${className} ${!finalSrc ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`}
             loading="lazy"
             onLoad={onLoad}
         />
     );
 };
 
-// --- Views ---
-
-const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => (
-  <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-surface-50 dark:bg-surface-950 text-center">
-     {/* Abstract Background Shapes */}
-     <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-200/30 dark:bg-brand-900/10 rounded-full blur-3xl animate-float"></div>
-     <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-200/30 dark:bg-blue-900/10 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
-
-    <div className="relative z-10 max-w-md w-full backdrop-blur-sm">
-        <div className="w-24 h-24 bg-white dark:bg-surface-800 rounded-[2rem] flex items-center justify-center shadow-soft mx-auto mb-10 rotate-3 hover:rotate-6 transition-transform duration-500">
-          <BookHeart className="text-brand-500 w-12 h-12" />
-        </div>
-        <h1 className="text-6xl font-display font-bold mb-6 text-surface-900 dark:text-white tracking-tight">
-          My <span className="text-brand-500">Diaries</span>
-        </h1>
-        <p className="text-xl text-surface-600 dark:text-surface-400 mb-12 leading-relaxed font-medium">
-          Your private digital sanctuary. <br/>
-          <span className="text-sm opacity-70 font-normal">Synced with Google Drive</span>
-        </p>
-        
-        <div className="space-y-4">
-            <Button onClick={onLogin} className="w-full text-lg !rounded-2xl h-16" variant="primary">
-            <LogIn className="w-6 h-6 mr-3" />
-            Sign in with Google
-            </Button>
-        </div>
-
-        <div className="mt-8 p-4 bg-white/50 dark:bg-surface-900/50 rounded-xl border border-surface-200 dark:border-surface-800 text-xs text-surface-500">
-            <p className="mb-2 font-bold">Mobile Login Issues?</p>
-            <p>Ensure this URL is in your Google Cloud "Authorized JavaScript origins":</p>
-            <code className="block mt-2 p-2 bg-surface-100 dark:bg-surface-950 rounded select-all font-mono text-brand-600">
-                {window.location.origin}
-            </code>
-        </div>
-    </div>
-  </div>
-);
-
-const Sidebar = ({ 
+// Glassmorphism Bottom Nav
+const BottomNav = ({ 
     activeView, 
-    onChangeView, 
-    onToggleTheme, 
-    isDark, 
-    onSignOut 
+    onChangeView 
 }: { 
     activeView: ViewState['type'], 
-    onChangeView: (v: ViewState['type']) => void,
-    onToggleTheme: () => void,
-    isDark: boolean,
-    onSignOut: () => void
+    onChangeView: (v: ViewState['type']) => void 
 }) => {
+    if (activeView === 'LOGIN' || activeView === 'CREATE' || activeView === 'EDIT') return null;
+
     return (
-        <div className="hidden md:flex flex-col w-80 h-screen sticky top-0 p-6 bg-[#F8F9FC] dark:bg-[#121214]">
-            <div className="flex items-center gap-3 mb-12 px-4">
-                <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30">
-                    <BookHeart className="w-6 h-6" />
-                </div>
-                <span className="font-display font-bold text-2xl text-surface-900 dark:text-white">My Diaries</span>
-            </div>
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none pb-safe">
+            <div className="mx-auto px-6 pb-6 pt-0 max-w-md pointer-events-auto">
+                <div className="glass-panel rounded-[2.5rem] shadow-glass border border-white/20 flex items-center justify-between px-8 py-3">
+                    <button 
+                        onClick={() => onChangeView('LIST')}
+                        className={`flex flex-col items-center gap-1 p-2 transition-all duration-300 ${activeView === 'LIST' ? 'text-surface-900 dark:text-white scale-110' : 'text-surface-400 hover:text-surface-600'}`}
+                    >
+                        <Home className={`w-6 h-6 ${activeView === 'LIST' ? 'fill-current' : ''}`} />
+                    </button>
 
-            <nav className="space-y-2 flex-1">
-                <button 
-                    onClick={() => onChangeView('LIST')}
-                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all duration-300 font-semibold text-left ${
-                        activeView === 'LIST' 
-                        ? 'bg-white dark:bg-surface-800 text-brand-600 dark:text-brand-300 shadow-soft' 
-                        : 'text-surface-500 hover:bg-white/50 dark:hover:bg-surface-800/50 hover:text-surface-900 dark:hover:text-white'
-                    }`}
-                >
-                    <LayoutGrid className="w-5 h-5" />
-                    All Entries
-                </button>
-            </nav>
+                    <button 
+                        onClick={() => onChangeView('CREATE')}
+                        className="bg-surface-900 dark:bg-white text-white dark:text-surface-900 w-14 h-14 rounded-full shadow-xl flex items-center justify-center transform -translate-y-6 hover:scale-105 active:scale-95 transition-all border-4 border-surface-50 dark:border-surface-950"
+                    >
+                        <Plus className="w-7 h-7" />
+                    </button>
 
-            <div className="bg-white dark:bg-surface-900 p-4 rounded-[2rem] shadow-soft border border-surface-50 dark:border-surface-800">
-                <div className="flex items-center justify-between mb-4">
-                   <span className="text-xs font-bold text-surface-400 uppercase tracking-wider ml-2">Theme</span>
-                   <button onClick={onToggleTheme} className="p-2 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
-                       {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                   </button>
+                    <button 
+                        onClick={() => onChangeView('SETTINGS')}
+                        className={`flex flex-col items-center gap-1 p-2 transition-all duration-300 ${activeView === 'SETTINGS' ? 'text-surface-900 dark:text-white scale-110' : 'text-surface-400 hover:text-surface-600'}`}
+                    >
+                        <User className={`w-6 h-6 ${activeView === 'SETTINGS' ? 'fill-current' : ''}`} />
+                    </button>
                 </div>
-                <button onClick={onSignOut} className="w-full flex items-center justify-center gap-2 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 py-3 rounded-xl transition-colors">
-                    <LogOut className="w-4 h-4" /> Sign Out
-                </button>
             </div>
         </div>
     );
 };
 
-const MobileNav = ({ onChangeView, activeView }: { onChangeView: (v: ViewState['type']) => void, activeView: ViewState['type'] }) => (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl border-t border-surface-100 dark:border-surface-800 pb-safe z-40">
-        <div className="flex justify-between items-center px-6 py-3">
-             <button 
-                onClick={() => onChangeView('LIST')} 
-                className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-colors ${activeView === 'LIST' ? 'text-brand-600 dark:text-brand-400' : 'text-surface-400'}`}
-             >
-                 <LayoutGrid className={`w-6 h-6 ${activeView === 'LIST' ? 'fill-current' : ''}`} />
-                 <span className="text-[10px] font-medium">Journal</span>
-             </button>
+// --- Views ---
 
-             <button 
-                onClick={() => onChangeView('CREATE')}
-                className="transform -translate-y-6 bg-brand-600 text-white p-4 rounded-full shadow-glow hover:scale-105 transition-all active:scale-95"
-             >
-                 <Plus className="w-7 h-7" />
-             </button>
+const LoginView: React.FC<{ onLogin: () => void }> = ({ onLogin }) => (
+  <div className="min-h-screen flex flex-col bg-surface-50 dark:bg-surface-950 p-6 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center opacity-5 mix-blend-overlay"></div>
+      
+      <div className="flex-1 flex flex-col items-center justify-center relative z-10 animate-fade-in-up">
+          <div className="w-24 h-24 bg-surface-900 dark:bg-white rounded-[2rem] mb-8 flex items-center justify-center shadow-xl rotate-3">
+             <Edit3 className="w-10 h-10 text-white dark:text-surface-900" />
+          </div>
 
-             <button 
-                onClick={() => onChangeView('SETTINGS')} 
-                className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-colors ${activeView === 'SETTINGS' ? 'text-brand-600 dark:text-brand-400' : 'text-surface-400'}`}
-             >
-                 <User className={`w-6 h-6 ${activeView === 'SETTINGS' ? 'fill-current' : ''}`} />
-                 <span className="text-[10px] font-medium">Settings</span>
-             </button>
-        </div>
-    </div>
-);
+          <h1 className="text-4xl font-sans font-bold text-surface-900 dark:text-white mb-4 tracking-tight text-center">
+              My Diaries
+          </h1>
+          
+          <p className="text-surface-500 dark:text-surface-400 text-center max-w-[260px] leading-relaxed mb-12 font-medium">
+              Capture your thoughts, feelings, and memories in a safe, private space.
+          </p>
 
-const MobileSettingsView: React.FC<{ 
-    onBack: () => void;
-    isDark: boolean;
-    onToggleTheme: () => void;
-    onSignOut: () => void;
-}> = ({ onBack, isDark, onToggleTheme, onSignOut }) => (
-    <div className="fixed inset-0 bg-[#F8F9FC] dark:bg-[#121214] z-50 animate-slide-up flex flex-col">
-        <header className="bg-white dark:bg-surface-900 px-6 py-4 flex items-center gap-4 shadow-sm border-b border-surface-100 dark:border-surface-800">
-             <button onClick={onBack} className="p-2 -ml-2 text-surface-600 dark:text-surface-300">
-                 <ChevronLeft className="w-6 h-6" />
-             </button>
-             <h2 className="text-lg font-display font-bold text-surface-900 dark:text-white">Settings</h2>
-        </header>
-        <div className="p-6 space-y-6">
-             <div className="bg-white dark:bg-surface-900 rounded-3xl p-6 shadow-soft border border-surface-50 dark:border-surface-800">
-                 <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-600 dark:text-surface-300">
-                             {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                         </div>
-                         <div>
-                             <h3 className="font-bold text-surface-900 dark:text-white">Dark Mode</h3>
-                             <p className="text-sm text-surface-500">Easier on the eyes</p>
-                         </div>
-                     </div>
-                     <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={isDark} onChange={onToggleTheme} className="sr-only peer" />
-                        <div className="w-11 h-6 bg-surface-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 dark:peer-focus:ring-brand-800 rounded-full peer dark:bg-surface-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-600"></div>
-                     </label>
-                 </div>
-             </div>
-
-             <button onClick={onSignOut} className="w-full bg-white dark:bg-surface-900 p-4 rounded-3xl shadow-soft border border-surface-50 dark:border-surface-800 flex items-center justify-center gap-2 text-red-500 font-medium active:scale-95 transition-transform">
-                 <LogOut className="w-5 h-5" />
-                 Sign Out
-             </button>
-
-             <div className="text-center text-surface-400 text-sm mt-10">
-                 <p>My Diaries v1.0</p>
-                 <p className="text-xs mt-1 opacity-60">Synced with Google Drive</p>
-             </div>
-        </div>
-    </div>
+          <Button onClick={onLogin} className="w-full max-w-xs !rounded-full !py-4 text-lg shadow-xl" variant="primary">
+              Connect with Google Drive
+          </Button>
+          
+          <p className="text-xs text-surface-400 mt-8 text-center max-w-xs">
+              Your data is stored directly in your own Google Drive. We cannot read your entries.
+          </p>
+      </div>
+  </div>
 );
 
 const EntryListView: React.FC<{
   entries: JournalEntry[];
   onSelect: (id: string) => void;
-  onCreate: () => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
   isLoading: boolean;
-}> = ({ entries, onSelect, onCreate, searchTerm, onSearchChange, isLoading }) => {
+  userProfile?: any;
+}> = ({ entries, onSelect, searchTerm, onSearchChange, isLoading }) => {
   
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
-
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return entries.filter(e => {
-      const matchesSearch = e.title.toLowerCase().includes(term) || 
-      new Date(e.date).toLocaleDateString().includes(term) ||
-      (e.mood && e.mood.toLowerCase().includes(term));
-      
-      const matchesMood = selectedMood ? e.mood === selectedMood : true;
+    return entries.filter(e => 
+      e.title.toLowerCase().includes(term) || 
+      new Date(e.date).toLocaleDateString().includes(term)
+    );
+  }, [entries, searchTerm]);
 
-      return matchesSearch && matchesMood;
-    });
-  }, [entries, searchTerm, selectedMood]);
-
-  if (isLoading && entries.length === 0) return <LoadingScreen message="Syncing..." />;
-
+  // Group entries by month/year if list is long, but simple list for now
+  
   return (
-    <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-4 md:px-10 pt-4 md:pt-12 no-scrollbar">
-       <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 sticky top-0 bg-[#F8F9FC] dark:bg-[#121214] z-30 py-2 md:static md:bg-transparent md:py-0">
-           <div>
-               <h2 className="text-3xl md:text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
-               <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
+    <div className="flex-1 h-full overflow-y-auto no-scrollbar bg-surface-50 dark:bg-surface-950 pb-32">
+       <div className="px-6 pt-12 pb-6 sticky top-0 z-20 bg-surface-50/90 dark:bg-surface-950/90 backdrop-blur-sm">
+           <div className="flex justify-between items-end mb-6">
+                <div>
+                    <h2 className="text-sm font-bold text-surface-400 uppercase tracking-wider mb-1">Welcome Back</h2>
+                    <h1 className="text-3xl font-bold text-surface-900 dark:text-white">Your Journal</h1>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-surface-200 dark:bg-surface-800 flex items-center justify-center overflow-hidden border-2 border-white dark:border-surface-700 shadow-sm">
+                    <User className="w-5 h-5 text-surface-400" />
+                </div>
            </div>
-           <div className="relative w-full md:w-72 group">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 group-focus-within:text-brand-500 transition-colors" />
+
+           <div className="relative">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
                <input 
                  type="text" 
-                 placeholder="Search..."
+                 placeholder="Search memories..."
                  value={searchTerm}
                  onChange={(e) => onSearchChange(e.target.value)}
-                 className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-transparent focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm"
+                 className="w-full pl-12 pr-4 py-3.5 rounded-2xl bg-white dark:bg-surface-900 border-none outline-none shadow-sm text-surface-700 dark:text-surface-200 placeholder:text-surface-400 transition-shadow focus:shadow-md"
                />
            </div>
-       </header>
-
-       {/* Mood Filter */}
-       <div className="flex gap-3 overflow-x-auto pb-4 mb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x">
-           <button 
-               onClick={() => setSelectedMood(null)}
-               className={`flex-shrink-0 snap-start px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${
-                   selectedMood === null 
-                   ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-lg scale-105' 
-                   : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800'
-               }`}
-           >
-               All
-           </button>
-           {MOODS.map(m => (
-               <button 
-                   key={m.id}
-                   onClick={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
-                   className={`flex-shrink-0 snap-start px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
-                       selectedMood === m.id 
-                       ? `${m.color} shadow-lg scale-105 ring-1 ring-black/5` 
-                       : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800 grayscale hover:grayscale-0'
-                   }`}
-               >
-                   <span className="text-lg">{m.emoji}</span>
-                   <span>{m.label}</span>
-               </button>
-           ))}
        </div>
 
-       {filteredEntries.length === 0 ? (
-           <div className="flex flex-col items-center justify-center py-20 opacity-60">
-               <div className="w-24 h-24 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-6">
-                   <Book className="w-10 h-10 text-surface-300" />
-               </div>
-               <p className="text-lg font-medium text-surface-500">No entries found.</p>
-               <Button variant="ghost" onClick={onCreate} className="mt-4 md:hidden">Create one now</Button>
+       {isLoading && entries.length === 0 ? (
+           <div className="flex flex-col items-center justify-center pt-20 gap-4">
+               <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+               <p className="text-surface-400 text-sm font-medium">Syncing with Drive...</p>
            </div>
        ) : (
-           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-10">
-               {filteredEntries.map((entry, idx) => {
+           <div className="px-6 space-y-5">
+               {filteredEntries.length === 0 && !isLoading && (
+                   <div className="text-center py-20">
+                       <div className="w-16 h-16 bg-surface-100 dark:bg-surface-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                           <LayoutGrid className="w-6 h-6 text-surface-300" />
+                       </div>
+                       <p className="text-surface-400 font-medium">No entries found.</p>
+                   </div>
+               )}
+               
+               {filteredEntries.map((entry) => {
                    const dateObj = new Date(entry.date);
                    const day = dateObj.getDate();
-                   const month = dateObj.toLocaleString('default', { month: 'short' });
+                   const month = dateObj.toLocaleDateString('en-US', { month: 'short' });
                    const moodObj = MOODS.find(m => m.id === entry.mood);
 
                    return (
-                       <div 
+                       <Card 
                           key={entry.id} 
                           onClick={() => onSelect(entry.id)}
-                          className="group relative bg-white dark:bg-surface-900 rounded-3xl md:rounded-[2rem] p-4 md:p-5 shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-surface-50 dark:border-surface-800/50 animate-slide-up fill-mode-backwards flex flex-col h-64"
-                          style={{ animationDelay: `${idx * 50}ms` }}
+                          className="p-0 animate-fade-in-up group overflow-hidden"
                        >
-                           {/* Date Badge */}
-                           <div className="absolute top-4 left-4 md:top-5 md:left-5 z-10 bg-white/90 dark:bg-surface-900/90 backdrop-blur-sm px-3 py-2 rounded-2xl shadow-sm border border-surface-100 dark:border-surface-800 text-center min-w-[3.5rem]">
-                               <span className="block text-xs font-bold text-surface-400 uppercase">{month}</span>
-                               <span className="block text-xl font-display font-bold text-surface-900 dark:text-white">{day}</span>
-                           </div>
-
-                           {/* Mood Badge */}
-                           {moodObj && (
-                               <div className="absolute top-4 right-4 md:top-5 md:right-5 z-10 text-2xl filter drop-shadow-sm transform group-hover:scale-110 transition-transform">
-                                   {moodObj.emoji}
+                           <div className="flex h-full">
+                               {/* Left Date Column */}
+                               <div className="w-20 flex flex-col items-center justify-center bg-surface-50 dark:bg-surface-900/50 border-r border-surface-100 dark:border-surface-800/50 p-4">
+                                   <span className="text-2xl font-bold text-surface-900 dark:text-white">{day}</span>
+                                   <span className="text-xs font-bold text-surface-400 uppercase">{month}</span>
                                </div>
-                           )}
-
-                           {/* Content Container */}
-                           <div className="flex-1 mt-2 rounded-2xl overflow-hidden relative bg-surface-50 dark:bg-surface-800">
-                               {entry.coverImageId || entry.coverImage ? (
-                                   <SecureImage 
-                                      fileId={entry.coverImageId}
-                                      thumbnailUrl={entry.coverImage}
-                                      fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s600')}
-                                      alt="Cover"
-                                      className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-                                   />
-                               ) : (
-                                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-50 to-surface-100 dark:from-surface-800 dark:to-surface-800/50">
-                                       <p className="font-serif italic text-surface-400 text-sm p-6 text-center line-clamp-4">
-                                           {entry.content.substring(0, 100)}...
-                                       </p>
+                               
+                               {/* Content Column */}
+                               <div className="flex-1 p-5 min-w-0">
+                                   <div className="flex justify-between items-start mb-2">
+                                        {moodObj ? (
+                                            <span className="text-2xl animate-bounce-slight" title={moodObj.label}>{moodObj.emoji}</span>
+                                        ) : (
+                                            <div className="w-6 h-6"></div>
+                                        )}
+                                        {entry.coverImage && (
+                                            <div className="w-8 h-8 rounded-lg overflow-hidden ml-2 flex-shrink-0 bg-surface-100">
+                                                <SecureImage fileId={entry.coverImageId} thumbnailUrl={entry.coverImage} alt="" className="w-full h-full object-cover" />
+                                            </div>
+                                        )}
                                    </div>
-                               )}
+                                   <h3 className="font-bold text-lg text-surface-900 dark:text-surface-50 truncate mb-1">
+                                       {entry.title || "Untitled"}
+                                   </h3>
+                                   <p className="text-surface-500 dark:text-surface-400 text-sm truncate font-serif">
+                                       {entry.content || "No preview available..."}
+                                   </p>
+                               </div>
                            </div>
-
-                           {/* Footer Title */}
-                           <div className="pt-4 px-1">
-                               <h3 className="font-display font-bold text-xl text-surface-900 dark:text-surface-100 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
-                                   {entry.title || "Untitled Entry"}
-                               </h3>
-                           </div>
-                       </div>
+                       </Card>
                    );
                })}
            </div>
        )}
-
-       {/* Floating Action Button - DESKTOP ONLY (Mobile has nav bar) */}
-       <div className="hidden md:block fixed bottom-10 right-10 z-40">
-           <Button variant="fab" onClick={onCreate}>
-               <Plus className="w-8 h-8" />
-           </Button>
-       </div>
     </div>
   );
 };
@@ -447,147 +287,131 @@ const EntryEditorView: React.FC<{
   initialData?: JournalEntry;
   onSave: (data: any) => Promise<void>;
   onCancel: () => void;
-  onDeleteAttachment?: (id: string) => Promise<void>;
-}> = ({ initialData, onSave, onCancel, onDeleteAttachment }) => {
+}> = ({ initialData, onSave, onCancel }) => {
+  // Single page editor for modern fluid feel
   const [title, setTitle] = useState(initialData?.title || '');
   const [content, setContent] = useState(initialData?.content || '');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString());
   const [mood, setMood] = useState(initialData?.mood || '');
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(initialData?.checklist || []);
-  const [newChecklistItem, setNewChecklistItem] = useState('');
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dateInputRef = useRef<HTMLInputElement>(null);
+  // Auto-resize title
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+      if (titleRef.current) {
+          titleRef.current.style.height = 'auto';
+          titleRef.current.style.height = titleRef.current.scrollHeight + 'px';
+      }
+  }, [title]);
 
   const handleSave = async () => {
+      if (!title.trim()) return;
       setIsSaving(true);
-      try { await onSave({ title, content, date, mood, files: pendingFiles, checklist }); } 
+      try { await onSave({ title, content, date, mood, files: pendingFiles }); } 
       finally { setIsSaving(false); }
   };
 
-  const handleAddChecklist = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (newChecklistItem.trim()) {
-          setChecklist([...checklist, { text: newChecklistItem.trim(), checked: false }]);
-          setNewChecklistItem('');
-      }
-  };
-
   return (
-      <div className="fixed inset-0 z-50 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-slide-up">
-          {/* Toolbar */}
-          <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20 sticky top-0">
-              <button onClick={onCancel} className="p-2 -ml-2 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-500 transition-colors">
+      <div className="fixed inset-0 z-50 bg-surface-50 dark:bg-surface-950 flex flex-col animate-fade-in">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-6 py-4 bg-surface-50/80 dark:bg-surface-950/80 backdrop-blur-sm z-20 sticky top-0">
+              <button onClick={onCancel} className="p-2 -ml-2 rounded-full hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-600 dark:text-surface-300 transition-colors">
                   <X className="w-6 h-6" />
               </button>
-              <div className="flex items-center gap-3 md:gap-4">
-                  <button 
-                     onClick={() => fileInputRef.current?.click()}
-                     className="p-2 rounded-full bg-surface-50 hover:bg-brand-50 text-surface-500 hover:text-brand-600 transition-colors"
-                  >
-                      <Paperclip className="w-5 h-5" />
-                  </button>
-                  <Button onClick={handleSave} disabled={isSaving || (!title && !content)} className="!py-2 !px-4 md:!px-6 !rounded-xl text-sm">
-                      {isSaving ? 'Saving...' : 'Save'}
-                  </Button>
-              </div>
+              <span className="text-sm font-bold text-surface-400 uppercase tracking-widest">
+                  {initialData ? 'Edit Entry' : 'New Entry'}
+              </span>
+              <button 
+                onClick={handleSave} 
+                disabled={isSaving || !title} 
+                className="p-2 -mr-2 text-brand-600 dark:text-brand-400 disabled:opacity-50 font-bold"
+              >
+                  {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Check className="w-6 h-6" />}
+              </button>
           </div>
 
-          {/* Editor Canvas */}
-          <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20">
-              <div className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-screen md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft p-6 md:p-16 relative">
-                  
-                  {/* Header Info */}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-10 pb-6 border-b border-dashed border-surface-200 dark:border-surface-700">
-                      <div className="relative cursor-pointer group" onClick={() => dateInputRef.current?.showPicker()}>
-                          <span className="text-sm font-bold text-brand-500 uppercase tracking-widest mb-1 block">Date</span>
-                          <div className="text-xl md:text-2xl font-display font-bold text-surface-800 dark:text-surface-200 flex items-center gap-2 group-hover:text-brand-600 transition-colors">
-                              {new Date(date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-                              <Edit3 className="w-4 h-4 opacity-0 group-hover:opacity-50" />
-                          </div>
-                          <input ref={dateInputRef} type="date" value={date.split('T')[0]} onChange={e => setDate(new Date(e.target.value).toISOString())} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      </div>
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto pb-safe">
+               <div className="max-w-2xl mx-auto px-6 py-4 space-y-8">
+                   
+                   {/* Date & Mood Row */}
+                   <div className="flex flex-wrap items-center gap-4">
+                       <div className="relative group">
+                           <input 
+                             type="date" 
+                             value={date.split('T')[0]} 
+                             onChange={e => setDate(new Date(e.target.value).toISOString())}
+                             className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                           />
+                           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 shadow-sm text-surface-600 dark:text-surface-300 text-sm font-medium group-hover:bg-surface-100 transition-colors">
+                               <Calendar className="w-4 h-4" />
+                               {new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                           </div>
+                       </div>
+                   </div>
 
-                      {/* Mood Selector */}
-                      <div className="flex gap-2 overflow-x-auto py-2 hide-scrollbar -mx-2 px-2 md:mx-0 md:px-0">
-                          {MOODS.map(m => (
-                              <button 
-                                  key={m.id} 
-                                  onClick={() => setMood(m.id)}
-                                  className={`p-3 text-2xl rounded-2xl transition-all hover:scale-110 flex-shrink-0 ${mood === m.id ? 'bg-surface-100 dark:bg-surface-800 scale-110 shadow-sm ring-2 ring-brand-200' : 'opacity-50 hover:opacity-100'}`}
-                              >
-                                  {m.emoji}
-                              </button>
-                          ))}
-                      </div>
-                  </div>
+                   {/* Mood Selector - Horizontal Scroll */}
+                   <div className="overflow-x-auto no-scrollbar pb-2 -mx-6 px-6 flex gap-3">
+                       {MOODS.map(m => (
+                           <button
+                               key={m.id}
+                               onClick={() => setMood(m.id)}
+                               className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all duration-300 ${
+                                   mood === m.id 
+                                   ? `${m.bg} ${m.text} ${m.border} shadow-md scale-105 ring-2 ring-offset-2 ring-offset-surface-50 dark:ring-offset-surface-950 ring-${m.bg.split('-')[1]}-400` 
+                                   : 'bg-white dark:bg-surface-900 border-surface-200 dark:border-surface-800 text-surface-500 grayscale hover:grayscale-0'
+                               }`}
+                           >
+                               <span className="text-xl">{m.emoji}</span>
+                               <span className="text-sm font-bold">{m.label}</span>
+                           </button>
+                       ))}
+                   </div>
 
-                  {/* Inputs */}
-                  <input 
-                      placeholder="Title..."
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      className="w-full text-3xl md:text-5xl font-display font-bold bg-transparent border-none outline-none placeholder:text-surface-300 text-surface-900 dark:text-white mb-6 md:mb-8"
-                  />
+                   {/* Title */}
+                   <textarea
+                       ref={titleRef}
+                       placeholder="Title your day..."
+                       value={title}
+                       onChange={e => setTitle(e.target.value)}
+                       rows={1}
+                       className="w-full bg-transparent text-4xl font-bold text-surface-900 dark:text-white placeholder:text-surface-300 dark:placeholder:text-surface-700 border-none outline-none resize-none overflow-hidden"
+                   />
 
-                  <TextArea 
-                      placeholder="Start writing your memory..."
-                      value={content}
-                      onChange={e => setContent(e.target.value)}
-                      className="min-h-[40vh] text-lg md:text-xl leading-loose font-serif text-surface-700 dark:text-surface-300 !px-0"
-                  />
+                   {/* Editor */}
+                   <textarea
+                       placeholder="Write your story..."
+                       value={content}
+                       onChange={e => setContent(e.target.value)}
+                       className="w-full min-h-[40vh] bg-transparent text-lg leading-loose font-serif text-surface-700 dark:text-surface-200 placeholder:text-surface-300 dark:placeholder:text-surface-700 border-none outline-none resize-none"
+                   />
 
-                  {/* Checklist */}
-                  <div className="mt-8 md:mt-12 bg-surface-50 dark:bg-surface-800/30 rounded-3xl p-5 md:p-6">
-                      <h4 className="font-bold text-surface-400 text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-                          <CheckSquare className="w-4 h-4" /> Checklist
-                      </h4>
-                      <div className="space-y-3">
-                          {checklist.map((item, i) => (
-                              <div key={i} className="flex items-center gap-3 group">
-                                  <button onClick={() => {
-                                      const n = [...checklist]; n[i].checked = !n[i].checked; setChecklist(n);
-                                  }}>
-                                      {item.checked ? <CheckSquare className="text-brand-500 w-5 h-5" /> : <Square className="text-surface-300 w-5 h-5" />}
-                                  </button>
-                                  <span className={`flex-1 font-medium ${item.checked ? 'line-through text-surface-400' : 'text-surface-700 dark:text-surface-200'}`}>{item.text}</span>
-                                  <button onClick={() => setChecklist(checklist.filter((_, idx) => idx !== i))} className="text-surface-300 hover:text-red-500 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <X className="w-4 h-4" />
-                                  </button>
-                              </div>
-                          ))}
-                          <form onSubmit={handleAddChecklist} className="flex gap-2 mt-4">
-                              <Input value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Add item..." className="!py-2 !bg-white dark:!bg-surface-800 text-sm" />
-                              <Button type="submit" variant="secondary" className="!py-2 !px-4 !rounded-xl text-sm">Add</Button>
-                          </form>
-                      </div>
-                  </div>
+                   {/* Image Attachments */}
+                   <div className="border-t border-surface-200 dark:border-surface-800 pt-6">
+                        <label className="inline-flex items-center gap-2 text-sm font-bold text-surface-500 hover:text-brand-600 cursor-pointer transition-colors mb-4">
+                            <div className="p-2 bg-surface-100 dark:bg-surface-900 rounded-lg">
+                                <ImageIcon className="w-5 h-5" />
+                            </div>
+                            Add Photos
+                            <input type="file" className="hidden" multiple accept="image/*" onChange={e => e.target.files && setPendingFiles(p => [...p, ...Array.from(e.target.files!)])} />
+                        </label>
 
-                  {/* Attachments Preview */}
-                  {(pendingFiles.length > 0 || (initialData?.attachments?.length ?? 0) > 0) && (
-                      <div className="mt-8 md:mt-12 grid grid-cols-3 md:grid-cols-4 gap-3 md:gap-4 pb-20 md:pb-0">
-                          {pendingFiles.map((f, i) => (
-                              <div key={i} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-100">
-                                  <img src={URL.createObjectURL(f)} className="w-full h-full object-cover opacity-80" />
-                                  <button onClick={() => setPendingFiles(p => p.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full">
-                                      <X className="w-3 h-3" />
-                                  </button>
-                              </div>
-                          ))}
-                          {initialData?.attachments?.map(att => (
-                              <div key={att.id} className="relative aspect-square rounded-2xl overflow-hidden bg-surface-100 group">
-                                  <SecureImage fileId={att.id} thumbnailUrl={att.thumbnailLink} alt="" className="w-full h-full object-cover" />
-                                  <button onClick={() => onDeleteAttachment && onDeleteAttachment(att.id)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <Trash2 className="w-3 h-3" />
-                                  </button>
-                              </div>
-                          ))}
-                      </div>
-                  )}
-                  <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={e => e.target.files && setPendingFiles(p => [...p, ...Array.from(e.target.files!)])} />
-              </div>
+                        {pendingFiles.length > 0 && (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                {pendingFiles.map((f, i) => (
+                                    <div key={i} className="aspect-square relative rounded-2xl overflow-hidden group">
+                                        <img src={URL.createObjectURL(f)} className="h-full w-full object-cover" />
+                                        <button onClick={() => setPendingFiles(p => p.filter((_, x) => x !== i))} className="absolute top-1 right-1 bg-black/50 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                   </div>
+               </div>
           </div>
       </div>
   );
@@ -598,93 +422,74 @@ const EntryReaderView: React.FC<{
     onBack: () => void;
     onEdit: () => void;
     onDelete: () => void;
-    isLoading: boolean;
-  }> = ({ entry, onBack, onEdit, onDelete, isLoading }) => {
-    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-    
-    if (isLoading || !entry) return <LoadingScreen message="Opening..." />;
-
+  }> = ({ entry, onBack, onEdit, onDelete }) => {
     const moodObj = MOODS.find(m => m.id === entry.mood);
   
     return (
-      <div className="fixed inset-0 z-40 bg-[#F8F9FC] dark:bg-[#121214] flex flex-col animate-scale-in origin-center">
-        <div className="flex items-center justify-between px-4 py-3 md:px-8 md:py-4 bg-white dark:bg-surface-900 border-b border-surface-100 dark:border-surface-800 shadow-sm z-20 sticky top-0">
-             <button onClick={onBack} className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors text-surface-600 dark:text-surface-300 font-medium -ml-2">
-                 <ChevronLeft className="w-5 h-5" /> Back
-             </button>
-             <div className="flex items-center gap-2">
-                 <button onClick={onEdit} className="p-2 text-brand-600 hover:bg-brand-50 rounded-full transition-colors"><Edit3 className="w-5 h-5" /></button>
-                 <button onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"><Trash2 className="w-5 h-5" /></button>
+      <div className="fixed inset-0 z-50 bg-white dark:bg-surface-950 flex flex-col animate-fade-in overflow-y-auto">
+          
+          {/* Cover Image Hero */}
+          <div className="relative h-72 w-full flex-shrink-0 bg-surface-100 dark:bg-surface-900">
+             {entry.coverImage || entry.coverImageId ? (
+                 <SecureImage 
+                    fileId={entry.coverImageId} 
+                    thumbnailUrl={entry.coverImage} 
+                    fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s800')} 
+                    alt="Cover" 
+                    className="w-full h-full object-cover" 
+                 />
+             ) : (
+                 <div className="w-full h-full bg-gradient-to-br from-brand-50 to-brand-100 dark:from-surface-900 dark:to-surface-800 flex items-center justify-center">
+                     <div className="text-surface-300 dark:text-surface-700">
+                        <ImageIcon className="w-12 h-12 opacity-20" />
+                     </div>
+                 </div>
+             )}
+             
+             {/* Navigation overlay */}
+             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start bg-gradient-to-b from-black/40 to-transparent">
+                 <button onClick={onBack} className="bg-white/20 backdrop-blur-md text-white p-3 rounded-full hover:bg-white/30 transition-colors">
+                     <ChevronLeft className="w-6 h-6" />
+                 </button>
+                 
+                 <div className="flex gap-3">
+                     <button onClick={onEdit} className="bg-white/20 backdrop-blur-md text-white p-3 rounded-full hover:bg-white/30 transition-colors">
+                         <Edit3 className="w-5 h-5" />
+                     </button>
+                     <button onClick={onDelete} className="bg-white/20 backdrop-blur-md text-red-200 p-3 rounded-full hover:bg-red-500/30 transition-colors">
+                         <Trash2 className="w-5 h-5" />
+                     </button>
+                 </div>
              </div>
-        </div>
-  
-        <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20">
-            <article className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-screen md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft overflow-hidden">
-                {/* Hero Image */}
-                {(entry.coverImageId || entry.coverImage) && (
-                    <div className="w-full h-64 md:h-80 relative">
-                        <SecureImage fileId={entry.coverImageId} thumbnailUrl={entry.coverImage} fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s1200')} alt="Cover" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                    </div>
-                )}
-                
-                <div className="p-6 md:p-16 relative">
-                    {/* Header */}
-                    <div className="flex justify-between items-start mb-6 md:mb-8">
-                        <div className="flex-1 pr-4">
-                            <span className="text-brand-600 font-bold tracking-widest text-xs uppercase mb-2 block">
-                                {new Date(entry.date).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                            </span>
-                            <h1 className="text-3xl md:text-5xl font-display font-bold text-surface-900 dark:text-white leading-tight break-words">
-                                {entry.title || "Untitled"}
-                            </h1>
-                        </div>
-                        {moodObj && <div className="text-4xl bg-surface-50 dark:bg-surface-800 p-3 rounded-2xl shadow-sm flex-shrink-0">{moodObj.emoji}</div>}
-                    </div>
-  
-                    {/* Content */}
-                    <div className="prose dark:prose-invert prose-lg md:prose-xl prose-p:text-surface-600 dark:prose-p:text-surface-300 prose-p:font-serif prose-headings:font-display mb-12 max-w-none">
-                        {entry.content.split('\n').map((p, i) => <p key={i}>{p}</p>)}
-                    </div>
 
-                    {/* Checklist */}
-                    {entry.checklist && entry.checklist.length > 0 && (
-                        <div className="bg-brand-50/50 dark:bg-brand-900/10 rounded-3xl p-6 md:p-8 mb-12 border border-brand-100 dark:border-brand-900/20">
-                             <h4 className="font-bold text-brand-400 text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <CheckSquare className="w-4 h-4" /> Checklist
-                             </h4>
-                             <div className="space-y-3">
-                                 {entry.checklist.map((item, i) => (
-                                     <div key={i} className="flex items-center gap-3">
-                                         {item.checked ? <CheckSquare className="text-brand-500 w-5 h-5 flex-shrink-0" /> : <Square className="text-brand-300 w-5 h-5 flex-shrink-0" />}
-                                         <span className={`font-medium ${item.checked ? 'line-through text-brand-400' : 'text-surface-700 dark:text-surface-200'}`}>{item.text}</span>
-                                     </div>
-                                 ))}
-                             </div>
-                        </div>
-                    )}
-  
-                    {/* Gallery */}
-                    {entry.attachments && entry.attachments.length > 0 && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 pb-20 md:pb-0">
-                            {entry.attachments.map(att => (
-                                <div key={att.id} onClick={() => setLightboxUrl(att.webViewLink)} className="aspect-square rounded-2xl overflow-hidden bg-surface-100 cursor-zoom-in hover:opacity-90 transition-opacity">
-                                    <SecureImage fileId={att.id} thumbnailUrl={att.thumbnailLink} alt="" className="w-full h-full object-cover" />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </article>
-        </div>
+             {/* Mood Badge - Floating */}
+             {moodObj && (
+                 <div className="absolute -bottom-6 right-8 shadow-lg">
+                      <div className={`flex items-center gap-2 px-5 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700`}>
+                          <span className="text-2xl">{moodObj.emoji}</span>
+                          <span className="font-bold text-sm text-surface-600 dark:text-surface-300">{moodObj.label}</span>
+                      </div>
+                 </div>
+             )}
+          </div>
 
-        {/* Lightbox */}
-        {lightboxUrl && (
-             <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 animate-in fade-in" onClick={() => setLightboxUrl(null)}>
-                 <img src={lightboxUrl} className="max-w-full max-h-full rounded-lg shadow-2xl" />
-                 <button className="absolute top-4 right-4 text-white bg-white/20 p-2 rounded-full hover:bg-white/30"><X /></button>
-             </div>
-        )}
+          {/* Content Body */}
+          <div className="px-8 pt-10 pb-24 max-w-2xl mx-auto w-full">
+               <div className="mb-8 border-b border-surface-100 dark:border-surface-800 pb-8">
+                   <p className="text-surface-400 font-bold uppercase tracking-widest text-xs mb-3">
+                       {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                   </p>
+                   <h1 className="text-3xl md:text-4xl font-bold text-surface-900 dark:text-white leading-tight">
+                       {entry.title}
+                   </h1>
+               </div>
+
+               <div className="prose prose-lg dark:prose-invert prose-p:text-surface-600 dark:prose-p:text-surface-300 font-serif leading-loose max-w-none">
+                   {entry.content.split('\n').map((p, i) => (
+                       p.trim() ? <p key={i}>{p}</p> : <br key={i}/>
+                   ))}
+               </div>
+          </div>
       </div>
     );
   };
@@ -696,13 +501,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewState>({ type: 'LOGIN' }); 
   const [isLoading, setIsLoading] = useState(false);
   const [activeEntryData, setActiveEntryData] = useState<JournalEntry | undefined>(undefined);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
 
   useEffect(() => {
       const cfg: GoogleConfig = {
@@ -737,23 +536,19 @@ const App: React.FC = () => {
   };
 
   const handleReadEntry = async (id: string) => {
-      setIsLoading(true);
       setView({ type: 'READ', id });
       const meta = entries.find(e => e.id === id);
       if(meta) {
           try {
               const content = await DriveService.getEntryContent(id);
+              const updated = { ...meta, ...content };
               if(content.attachments.length > 0 && !meta.coverImageId) {
-                  DriveService.updateCoverImage(id, content.attachments[0].id, content.attachments[0].thumbnailLink);
-                  const updated = { ...meta, ...content, coverImageId: content.attachments[0].id, coverImage: content.attachments[0].thumbnailLink };
-                  setActiveEntryData(updated);
-                  setEntries(prev => prev.map(e => e.id === id ? updated : e));
-              } else {
-                  setActiveEntryData({ ...meta, ...content });
+                  updated.coverImageId = content.attachments[0].id;
+                  updated.coverImage = content.attachments[0].thumbnailLink;
               }
+              setActiveEntryData(updated);
           } catch(e) { console.error(e); }
       }
-      setIsLoading(false);
   };
 
   const handleSaveEntry = async (data: any, isUpdate = false) => {
@@ -777,7 +572,7 @@ const App: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-      if(!confirm("Delete this memory forever?")) return;
+      if(!confirm("Delete this memory?")) return;
       await DriveService.deleteEntry(id);
       setEntries(p => p.filter(e => e.id !== id));
       setView({ type: 'LIST' });
@@ -794,45 +589,44 @@ const App: React.FC = () => {
           case 'LIST': 
           case 'SETTINGS':
             return (
-                <div className="flex h-screen overflow-hidden bg-[#F8F9FC] dark:bg-[#121214]">
-                    <Sidebar 
-                      activeView="LIST" 
-                      onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
-                      onToggleTheme={() => setDarkMode(!darkMode)} 
-                      isDark={darkMode} 
-                      onSignOut={handleSignOut} 
-                    />
-                    <EntryListView entries={entries} onSelect={handleReadEntry} onCreate={() => setView({type: 'CREATE'})} searchTerm={searchTerm} onSearchChange={setSearchTerm} isLoading={isLoading} />
-                    <MobileNav 
-                      onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
-                      activeView={view.type} 
-                    />
+                <>
+                    <EntryListView entries={entries} onSelect={handleReadEntry} searchTerm={searchTerm} onSearchChange={setSearchTerm} isLoading={isLoading} />
+                    
+                    {/* Settings Modal Overlay */}
                     {view.type === 'SETTINGS' && (
-                        <MobileSettingsView 
-                            onBack={() => setView({type: 'LIST'})}
-                            isDark={darkMode}
-                            onToggleTheme={() => setDarkMode(!darkMode)}
-                            onSignOut={handleSignOut}
-                        />
+                         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setView({type: 'LIST'})}></div>
+                             <div className="bg-white dark:bg-surface-900 w-full sm:max-w-sm rounded-t-[2rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative z-10">
+                                 <div className="w-12 h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full mx-auto mb-8"></div>
+                                 <h2 className="text-2xl font-bold mb-2 dark:text-white">Settings</h2>
+                                 <p className="text-surface-500 mb-8">Manage your account and preferences.</p>
+                                 
+                                 <div className="space-y-3">
+                                    <Button variant="secondary" className="w-full justify-start" icon={Settings}>Preferences (Coming Soon)</Button>
+                                    <Button variant="danger" onClick={handleSignOut} className="w-full !rounded-2xl justify-start">
+                                        <div className="flex items-center w-full">
+                                            <span className="flex-1 text-left">Sign Out</span>
+                                        </div>
+                                    </Button>
+                                 </div>
+                             </div>
+                         </div>
                     )}
-                </div>
+                    <BottomNav activeView={view.type} onChangeView={(t) => setView({type: t} as ViewState)} />
+                </>
             );
           case 'CREATE': 
              return <EntryEditorView onSave={d => handleSaveEntry(d, false)} onCancel={() => setView({type: 'LIST'})} />;
           case 'EDIT': 
-             return <EntryEditorView initialData={activeEntryData} onSave={d => handleSaveEntry(d, true)} onCancel={() => setView({type: 'READ', id: activeEntryData!.id})} onDeleteAttachment={async (aid) => { 
-                 if(!confirm("Delete image?")) return; 
-                 await DriveService.deleteFile(aid); 
-                 setActiveEntryData(p => p ? ({...p, attachments: p.attachments?.filter(a => a.id !== aid)}) : undefined); 
-             }} />;
+             return <EntryEditorView initialData={activeEntryData} onSave={d => handleSaveEntry(d, true)} onCancel={() => setView({type: 'READ', id: activeEntryData!.id})} />;
           case 'READ': 
-             return <EntryReaderView entry={activeEntryData!} onBack={() => setView({type: 'LIST'})} onEdit={() => setView({type: 'EDIT', id: activeEntryData!.id})} onDelete={() => handleDelete(activeEntryData!.id)} isLoading={isLoading} />;
+             return <EntryReaderView entry={activeEntryData!} onBack={() => setView({type: 'LIST'})} onEdit={() => setView({type: 'EDIT', id: activeEntryData!.id})} onDelete={() => handleDelete(activeEntryData!.id)} />;
           default: return null;
       }
   };
 
   return (
-    <div className="antialiased">
+    <div className="antialiased h-screen w-full max-w-md mx-auto bg-surface-50 dark:bg-surface-950 shadow-2xl overflow-hidden relative flex flex-col border-x border-surface-200 dark:border-surface-800">
         {renderView()}
     </div>
   );
