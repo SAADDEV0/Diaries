@@ -243,11 +243,16 @@ export const DriveService = {
 
   // --- Entry Operations ---
 
-  listEntries: async (): Promise<JournalEntry[]> => {
+  listEntries: async (searchText?: string): Promise<JournalEntry[]> => {
     // Query by appProperty instead of name to allow custom titles/filenames
     // This works for both old 'notes.md' files and new titled files
-    const query = "appProperties has { key='type' and value='journal-entry' } and trashed = false";
+    let query = "appProperties has { key='type' and value='journal-entry' } and trashed = false";
     
+    if (searchText) {
+      const safeSearch = searchText.replace(/'/g, "\\'");
+      query += ` and fullText contains '${safeSearch}'`;
+    }
+
     try {
       const response = await window.gapi.client.drive.files.list({
         q: query,
