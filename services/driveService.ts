@@ -245,12 +245,12 @@ export const DriveService = {
 
   listEntries: async (searchText?: string): Promise<JournalEntry[]> => {
     // Query by appProperty instead of name to allow custom titles/filenames
-    // This works for both old 'notes.md' files and new titled files
     let query = "appProperties has { key='type' and value='journal-entry' } and trashed = false";
     
     if (searchText) {
       const safeSearch = searchText.replace(/'/g, "\\'");
-      query += ` and fullText contains '${safeSearch}'`;
+      // Broader search: Check if content contains text OR filename contains text
+      query += ` and (fullText contains '${safeSearch}' or name contains '${safeSearch}')`;
     }
 
     try {
@@ -302,15 +302,12 @@ export const DriveService = {
       let content = response.body;
 
       // Parse content to strip metadata header if present
-      // Check for our format: Title: ... \n Date: ... \n Mood: ...
       const lines = content.split('\n');
       if (lines.length >= 3 && 
           lines[0].startsWith('Title: ') && 
           lines[1].startsWith('Date: ') && 
           lines[2].startsWith('Mood: ')) {
           
-          // Metadata detected. 
-          // Find where content starts (usually after an empty line at index 3)
           let startIndex = 3;
           if (lines[startIndex] === '') {
             startIndex = 4;
@@ -386,12 +383,9 @@ export const DriveService = {
   saveEntry: async (entry: JournalEntry, filesToUpload: File[]): Promise<{ id: string, coverImageId?: string, coverImage?: string }> => {
     const { dayFolderId, imagesFolderId } = await DriveService.ensureDatePath(entry.date);
 
-    // Generate clean filename from title
     const safeTitle = (entry.title || 'Untitled').replace(/[/\\?%*:|"<>\.]/g, '-');
     const fileName = `${safeTitle}.md`;
 
-    // Format current time to Moroccan Timezone (Africa/Casablanca)
-    // Using en-GB to get DD/MM/YYYY format, but enforcing the timezone
     const moroccanDate = new Date().toLocaleString('en-GB', {
       timeZone: 'Africa/Casablanca',
       year: 'numeric',
@@ -403,7 +397,6 @@ export const DriveService = {
       hour12: false
     }).replace(',', '');
 
-    // Prepare checklist content
     let checklistContent = '';
     if (entry.checklist && entry.checklist.length > 0) {
         checklistContent = '\n\n## Checklist\n' + entry.checklist.map(item => 
@@ -411,7 +404,6 @@ export const DriveService = {
         ).join('\n');
     }
 
-    // Prepare formatted content with metadata header
     const formattedContent = `Title: ${entry.title}
 Date: ${moroccanDate}
 Mood: ${entry.mood || 'None'}
@@ -432,7 +424,6 @@ ${entry.content}${checklistContent}`;
 
     let fileId = entry.id;
 
-    // Check for existing legacy file if we don't have an ID
     if (!fileId) {
       const existing = await DriveService.findFile('notes.md', dayFolderId);
       if (existing) fileId = existing.id;
@@ -440,8 +431,6 @@ ${entry.content}${checklistContent}`;
 
     if (fileId) {
       // --- UPDATE EXISTING ---
-      
-      // 1. Check if we need to move the file to the new date folder
       const currentFile = await window.gapi.client.drive.files.get({
            fileId: fileId,
            fields: 'parents'
@@ -458,7 +447,6 @@ ${entry.content}${checklistContent}`;
            });
       }
 
-      // 2. Update Content (using formattedContent)
       await window.gapi.client.request({
         path: `/upload/drive/v3/files/${fileId}`,
         method: 'PATCH',
@@ -466,7 +454,6 @@ ${entry.content}${checklistContent}`;
         body: formattedContent
       });
       
-      // 3. Update Metadata
       await window.gapi.client.drive.files.update({
         fileId: fileId,
         resource: {
@@ -505,7 +492,6 @@ ${entry.content}${checklistContent}`;
       fileId = request.result.id;
     }
 
-    // 3. Upload Images (Converted to PNG if needed) & Capture first ID
     let coverImageIdToSet: string | undefined = undefined;
     let coverImageLinkToSet: string | undefined = undefined;
 
@@ -529,7 +515,6 @@ ${entry.content}${checklistContent}`;
        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
        form.append('file', fileToUpload);
 
-       // Important: Request fields=id,thumbnailLink so we can use it immediately
        const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,thumbnailLink', {
          method: 'POST',
          headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
@@ -545,12 +530,9 @@ ${entry.content}${checklistContent}`;
        }
     }
 
-    // 4. UPDATE COVER IMAGE
-    // Logic: Use newly uploaded ID if available, otherwise try to find existing one if none set
     let finalCoverId = coverImageIdToSet || entry.coverImageId;
     let finalCoverLink = coverImageLinkToSet || entry.coverImage;
 
-    // If we don't have a cover yet (not in entry, not uploaded), check the folder
     if (!finalCoverId) {
         try {
             const imgs = await window.gapi.client.drive.files.list({
@@ -567,7 +549,6 @@ ${entry.content}${checklistContent}`;
         }
     }
 
-    // Only update if we found something different or new
     if (finalCoverId && finalCoverId !== entry.coverImageId) {
         try {
             await window.gapi.client.drive.files.update({
@@ -607,7 +588,6 @@ ${entry.content}${checklistContent}`;
     });
   },
 
-  // Generalized fetch for authenticated Drive content (works for thumbnails and media)
   fetchAuthenticatedBlob: async (url: string): Promise<string> => {
     try {
       const token = window.gapi.client.getToken();
