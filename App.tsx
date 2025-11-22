@@ -25,6 +25,16 @@ const MOODS = [
   { id: 'angry', emoji: '😤', label: 'Angry', color: 'bg-red-100 text-red-600' },
 ];
 
+// --- Hooks ---
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 // --- Sub-Components ---
 
 const LoadingScreen = ({ message }: { message: string }) => (
@@ -305,19 +315,16 @@ const EntryListView: React.FC<{
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
 
   const filteredEntries = useMemo(() => {
-    const term = searchTerm.toLowerCase();
+    // We assume 'entries' passed to this component are already filtered by search term (server-side)
+    // So we only apply the local mood filter.
     return entries.filter(e => {
-      const matchesSearch = e.title.toLowerCase().includes(term) || 
-      new Date(e.date).toLocaleDateString().includes(term) ||
-      (e.mood && e.mood.toLowerCase().includes(term));
-      
       const matchesMood = selectedMood ? e.mood === selectedMood : true;
-
-      return matchesSearch && matchesMood;
+      return matchesMood;
     });
-  }, [entries, searchTerm, selectedMood]);
+  }, [entries, selectedMood]);
 
-  if (isLoading && entries.length === 0) return <LoadingScreen message="Syncing..." />;
+  // Don't show syncing if we have content and just searching, only on initial empty load
+  if (isLoading && entries.length === 0 && !searchTerm) return <LoadingScreen message="Syncing..." />;
 
   return (
     <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-4 md:px-10 pt-4 md:pt-12 no-scrollbar">
@@ -327,10 +334,10 @@ const EntryListView: React.FC<{
                <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
            </div>
            <div className="relative w-full md:w-72 group">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 group-focus-within:text-brand-500 transition-colors" />
+               <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${isLoading ? 'text-brand-500 animate-pulse' : 'text-surface-400 group-focus-within:text-brand-500'}`} />
                <input 
                  type="text" 
-                 placeholder="Search..."
+                 placeholder="Search content..."
                  value={searchTerm}
                  onChange={(e) => onSearchChange(e.target.value)}
                  className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-transparent focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm"
@@ -367,15 +374,17 @@ const EntryListView: React.FC<{
        </div>
 
        {filteredEntries.length === 0 ? (
-           <div className="flex flex-col items-center justify-center py-20 opacity-60">
+           <div className={`flex flex-col items-center justify-center py-20 transition-opacity duration-300 ${isLoading ? 'opacity-40' : 'opacity-60'}`}>
                <div className="w-24 h-24 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-6">
                    <Book className="w-10 h-10 text-surface-300" />
                </div>
-               <p className="text-lg font-medium text-surface-500">No entries found.</p>
+               <p className="text-lg font-medium text-surface-500">
+                   {searchTerm ? "No matching memories found." : "No entries yet."}
+               </p>
                <Button variant="ghost" onClick={onCreate} className="mt-4 md:hidden">Create one now</Button>
            </div>
        ) : (
-           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-10">
+           <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-10 transition-opacity duration-300 ${isLoading ? 'opacity-50 grayscale-[0.5]' : ''}`}>
                {filteredEntries.map((entry, idx) => {
                    const dateObj = new Date(entry.date);
                    const day = dateObj.getDate();
@@ -693,11 +702,13 @@ const EntryReaderView: React.FC<{
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [allEntries, setAllEntries] = useState<JournalEntry[]>([]); // Cache for all entries
   const [view, setView] = useState<ViewState>({ type: 'LOGIN' }); 
   const [isLoading, setIsLoading] = useState(false);
   const [activeEntryData, setActiveEntryData] = useState<JournalEntry | undefined>(undefined);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -711,6 +722,34 @@ const App: React.FC = () => {
       };
       initializeDrive(cfg);
   }, []);
+
+  // Search Logic
+  useEffect(() => {
+    const performSearch = async () => {
+      // If no search term, restore full list
+      if (!debouncedSearchTerm.trim()) {
+        if (entries.length !== allEntries.length || entries !== allEntries) {
+             setEntries(allEntries);
+        }
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const results = await DriveService.listEntries(debouncedSearchTerm);
+        setEntries(results);
+      } catch (e) {
+        console.error("Search failed", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Only search if we are in the list view (or generally authenticated)
+    if (DriveService.getIsLoggedIn()) {
+        performSearch();
+    }
+  }, [debouncedSearchTerm, allEntries]);
 
   const initializeDrive = async (cfg: GoogleConfig) => {
     setIsLoading(true);
@@ -729,9 +768,21 @@ const App: React.FC = () => {
   const refreshEntries = async () => {
     setIsLoading(true);
     try {
+        // Fetch all entries to update cache
         const list = await DriveService.listEntries();
-        setEntries(list);
-        setView({ type: 'LIST' });
+        setAllEntries(list);
+        
+        // If search is not active, update display
+        if (!searchTerm.trim()) {
+            setEntries(list);
+        }
+        // If search IS active, the useEffect [debouncedSearchTerm] will technically handle it,
+        // or we could trigger a re-search here. 
+        // For simplicity, let's assume the effect handles the current state.
+        // But if we just added something, we might want to ensure the view is correct.
+        
+        if(view.type !== 'LOGIN') setView({ type: 'LIST' });
+
     } catch(e) { console.error(e); } 
     finally { setIsLoading(false); }
   };
@@ -748,6 +799,7 @@ const App: React.FC = () => {
                   const updated = { ...meta, ...content, coverImageId: content.attachments[0].id, coverImage: content.attachments[0].thumbnailLink };
                   setActiveEntryData(updated);
                   setEntries(prev => prev.map(e => e.id === id ? updated : e));
+                  setAllEntries(prev => prev.map(e => e.id === id ? updated : e));
               } else {
                   setActiveEntryData({ ...meta, ...content });
               }
@@ -766,11 +818,17 @@ const App: React.FC = () => {
           
           if(isUpdate) {
                setEntries(p => p.map(e => e.id === entry.id ? finalEntry : e));
+               setAllEntries(p => p.map(e => e.id === entry.id ? finalEntry : e));
                setActiveEntryData(finalEntry);
                setView({ type: 'READ', id: entry.id });
           } else {
-               setEntries(p => [finalEntry, ...p]);
+               // Add to local state immediately
+               const newEntries = [finalEntry, ...entries];
+               setEntries(newEntries);
+               setAllEntries([finalEntry, ...allEntries]);
+               
                setView({ type: 'LIST' });
+               // Background sync to ensure order and metadata are 100% correct from server
                setTimeout(refreshEntries, 1000);
           }
       } catch(e) { alert("Save failed"); console.error(e); }
@@ -780,12 +838,16 @@ const App: React.FC = () => {
       if(!confirm("Delete this memory forever?")) return;
       await DriveService.deleteEntry(id);
       setEntries(p => p.filter(e => e.id !== id));
+      setAllEntries(p => p.filter(e => e.id !== id));
       setView({ type: 'LIST' });
   };
 
   const handleSignOut = () => {
       DriveService.signOut();
       setView({ type: 'LOGIN' });
+      setEntries([]);
+      setAllEntries([]);
+      setSearchTerm('');
   };
 
   const renderView = () => {
@@ -802,7 +864,14 @@ const App: React.FC = () => {
                       isDark={darkMode} 
                       onSignOut={handleSignOut} 
                     />
-                    <EntryListView entries={entries} onSelect={handleReadEntry} onCreate={() => setView({type: 'CREATE'})} searchTerm={searchTerm} onSearchChange={setSearchTerm} isLoading={isLoading} />
+                    <EntryListView 
+                        entries={entries} 
+                        onSelect={handleReadEntry} 
+                        onCreate={() => setView({type: 'CREATE'})} 
+                        searchTerm={searchTerm} 
+                        onSearchChange={setSearchTerm} 
+                        isLoading={isLoading} 
+                    />
                     <MobileNav 
                       onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
                       activeView={view.type} 
