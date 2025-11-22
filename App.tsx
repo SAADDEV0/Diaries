@@ -25,16 +25,6 @@ const MOODS = [
   { id: 'angry', emoji: '😤', label: 'Angry', color: 'bg-red-100 text-red-600' },
 ];
 
-// --- Hooks ---
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
 // --- Sub-Components ---
 
 const LoadingScreen = ({ message }: { message: string }) => (
@@ -230,7 +220,7 @@ const Sidebar = ({
 };
 
 const MobileNav = ({ onChangeView, activeView }: { onChangeView: (v: ViewState['type']) => void, activeView: ViewState['type'] }) => (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-surface-900/90 backdrop-blur-xl border-t border-surface-100 dark:border-surface-800 pb-safe z-40">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl border-t border-surface-100 dark:border-surface-800 pb-safe z-40">
         <div className="flex justify-between items-center px-6 py-3">
              <button 
                 onClick={() => onChangeView('LIST')} 
@@ -315,138 +305,133 @@ const EntryListView: React.FC<{
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
 
   const filteredEntries = useMemo(() => {
-    // 'entries' may be the full list OR search results. 
-    // We allow filtering by mood in both cases.
+    const term = searchTerm.toLowerCase();
     return entries.filter(e => {
+      const matchesSearch = e.title.toLowerCase().includes(term) || 
+      new Date(e.date).toLocaleDateString().includes(term) ||
+      (e.mood && e.mood.toLowerCase().includes(term));
+      
       const matchesMood = selectedMood ? e.mood === selectedMood : true;
-      return matchesMood;
-    });
-  }, [entries, selectedMood]);
 
-  // Don't show syncing if we have content and just searching
-  if (isLoading && entries.length === 0 && !searchTerm) return <LoadingScreen message="Syncing..." />;
+      return matchesSearch && matchesMood;
+    });
+  }, [entries, searchTerm, selectedMood]);
+
+  if (isLoading && entries.length === 0) return <LoadingScreen message="Syncing..." />;
 
   return (
-    <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-0 md:px-10 pt-0 md:pt-12 no-scrollbar bg-[#F8F9FC] dark:bg-[#121214]">
-       
-       {/* Sticky Header Container */}
-       <div className="sticky top-0 z-30 bg-[#F8F9FC]/95 dark:bg-[#121214]/95 backdrop-blur-md md:bg-transparent md:backdrop-blur-none px-4 pt-4 pb-2 md:p-0 border-b border-surface-100 dark:border-surface-800 md:border-none shadow-sm md:shadow-none">
-           <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:mb-6">
-               <div className="hidden md:block">
-                   <h2 className="text-3xl md:text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
-                   <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
-               </div>
-               <div className="relative w-full md:w-72 group">
-                   <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${isLoading ? 'text-brand-500 animate-pulse' : 'text-surface-400 group-focus-within:text-brand-500'}`} />
-                   <input 
-                     type="text" 
-                     placeholder="Search all memories..."
-                     value={searchTerm}
-                     onChange={(e) => onSearchChange(e.target.value)}
-                     className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm text-base"
-                   />
-               </div>
-           </header>
+    <div className="flex-1 h-screen overflow-y-auto pb-32 md:pb-10 px-4 md:px-10 pt-4 md:pt-12 no-scrollbar">
+       <header className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 sticky top-0 bg-[#F8F9FC] dark:bg-[#121214] z-30 py-2 md:static md:bg-transparent md:py-0">
+           <div>
+               <h2 className="text-3xl md:text-4xl font-display font-bold text-surface-900 dark:text-white mb-1">My Journal</h2>
+               <p className="text-surface-500 font-medium text-sm md:text-base">{entries.length} memories stored</p>
+           </div>
+           <div className="relative w-full md:w-72 group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400 group-focus-within:text-brand-500 transition-colors" />
+               <input 
+                 type="text" 
+                 placeholder="Search..."
+                 value={searchTerm}
+                 onChange={(e) => onSearchChange(e.target.value)}
+                 className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white dark:bg-surface-800 border border-transparent focus:border-brand-200 dark:focus:border-brand-800 focus:ring-4 focus:ring-brand-50 dark:focus:ring-brand-900/20 outline-none transition-all shadow-sm"
+               />
+           </div>
+       </header>
 
-           {/* Mood Filter - Now inside sticky header */}
-           <div className="flex gap-2 overflow-x-auto pb-2 pt-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x md:mb-6">
+       {/* Mood Filter */}
+       <div className="flex gap-3 overflow-x-auto pb-4 mb-2 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 snap-x">
+           <button 
+               onClick={() => setSelectedMood(null)}
+               className={`flex-shrink-0 snap-start px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${
+                   selectedMood === null 
+                   ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-lg scale-105' 
+                   : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800'
+               }`}
+           >
+               All
+           </button>
+           {MOODS.map(m => (
                <button 
-                   onClick={() => setSelectedMood(null)}
-                   className={`flex-shrink-0 snap-start px-4 py-2 md:px-6 md:py-3 rounded-full text-xs md:text-sm font-bold transition-all whitespace-nowrap ${
-                       selectedMood === null 
-                       ? 'bg-surface-900 text-white dark:bg-white dark:text-surface-900 shadow-md scale-105' 
-                       : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800'
+                   key={m.id}
+                   onClick={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
+                   className={`flex-shrink-0 snap-start px-5 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+                       selectedMood === m.id 
+                       ? `${m.color} shadow-lg scale-105 ring-1 ring-black/5` 
+                       : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800 grayscale hover:grayscale-0'
                    }`}
                >
-                   All
+                   <span className="text-lg">{m.emoji}</span>
+                   <span>{m.label}</span>
                </button>
-               {MOODS.map(m => (
-                   <button 
-                       key={m.id}
-                       onClick={() => setSelectedMood(selectedMood === m.id ? null : m.id)}
-                       className={`flex-shrink-0 snap-start px-4 py-2 md:px-5 md:py-3 rounded-full text-xs md:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 md:gap-2 ${
-                           selectedMood === m.id 
-                           ? `${m.color} shadow-md scale-105 ring-1 ring-black/5` 
-                           : 'bg-white dark:bg-surface-800 text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-700 border border-surface-100 dark:border-surface-800 grayscale hover:grayscale-0'
-                       }`}
-                   >
-                       <span className="text-base md:text-lg">{m.emoji}</span>
-                       <span>{m.label}</span>
-                   </button>
-               ))}
-           </div>
+           ))}
        </div>
 
-       <div className="px-4 md:px-0 mt-4 md:mt-0">
-           {filteredEntries.length === 0 ? (
-               <div className={`flex flex-col items-center justify-center py-20 transition-opacity duration-300 ${isLoading ? 'opacity-40' : 'opacity-60'}`}>
-                   <div className="w-24 h-24 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-6">
-                       <Book className="w-10 h-10 text-surface-300" />
-                   </div>
-                   <p className="text-lg font-medium text-surface-500 text-center">
-                       {searchTerm ? "No matching memories found." : "Start your journey today."}
-                   </p>
-                   <Button variant="ghost" onClick={onCreate} className="mt-4 md:hidden">Write new entry</Button>
+       {filteredEntries.length === 0 ? (
+           <div className="flex flex-col items-center justify-center py-20 opacity-60">
+               <div className="w-24 h-24 bg-surface-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-6">
+                   <Book className="w-10 h-10 text-surface-300" />
                </div>
-           ) : (
-               <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-10 transition-opacity duration-300 ${isLoading ? 'opacity-50 grayscale-[0.5]' : ''}`}>
-                   {filteredEntries.map((entry, idx) => {
-                       const dateObj = new Date(entry.date);
-                       const day = dateObj.getDate();
-                       const month = dateObj.toLocaleString('default', { month: 'short' });
-                       const moodObj = MOODS.find(m => m.id === entry.mood);
+               <p className="text-lg font-medium text-surface-500">No entries found.</p>
+               <Button variant="ghost" onClick={onCreate} className="mt-4 md:hidden">Create one now</Button>
+           </div>
+       ) : (
+           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-10">
+               {filteredEntries.map((entry, idx) => {
+                   const dateObj = new Date(entry.date);
+                   const day = dateObj.getDate();
+                   const month = dateObj.toLocaleString('default', { month: 'short' });
+                   const moodObj = MOODS.find(m => m.id === entry.mood);
 
-                       return (
-                           <div 
-                              key={entry.id} 
-                              onClick={() => onSelect(entry.id)}
-                              className="group relative bg-white dark:bg-surface-900 rounded-2xl md:rounded-[2rem] p-4 md:p-5 shadow-sm md:shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-surface-100 dark:border-surface-800 animate-slide-up fill-mode-backwards flex flex-col h-64"
-                              style={{ animationDelay: `${idx * 50}ms` }}
-                           >
-                               {/* Date Badge */}
-                               <div className="absolute top-4 left-4 md:top-5 md:left-5 z-10 bg-white/90 dark:bg-surface-900/90 backdrop-blur-sm px-3 py-2 rounded-xl md:rounded-2xl shadow-sm border border-surface-100 dark:border-surface-800 text-center min-w-[3.5rem]">
-                                   <span className="block text-[10px] md:text-xs font-bold text-surface-400 uppercase">{month}</span>
-                                   <span className="block text-lg md:text-xl font-display font-bold text-surface-900 dark:text-white">{day}</span>
+                   return (
+                       <div 
+                          key={entry.id} 
+                          onClick={() => onSelect(entry.id)}
+                          className="group relative bg-white dark:bg-surface-900 rounded-3xl md:rounded-[2rem] p-4 md:p-5 shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-surface-50 dark:border-surface-800/50 animate-slide-up fill-mode-backwards flex flex-col h-64"
+                          style={{ animationDelay: `${idx * 50}ms` }}
+                       >
+                           {/* Date Badge */}
+                           <div className="absolute top-4 left-4 md:top-5 md:left-5 z-10 bg-white/90 dark:bg-surface-900/90 backdrop-blur-sm px-3 py-2 rounded-2xl shadow-sm border border-surface-100 dark:border-surface-800 text-center min-w-[3.5rem]">
+                               <span className="block text-xs font-bold text-surface-400 uppercase">{month}</span>
+                               <span className="block text-xl font-display font-bold text-surface-900 dark:text-white">{day}</span>
+                           </div>
+
+                           {/* Mood Badge */}
+                           {moodObj && (
+                               <div className="absolute top-4 right-4 md:top-5 md:right-5 z-10 text-2xl filter drop-shadow-sm transform group-hover:scale-110 transition-transform">
+                                   {moodObj.emoji}
                                </div>
+                           )}
 
-                               {/* Mood Badge */}
-                               {moodObj && (
-                                   <div className="absolute top-4 right-4 md:top-5 md:right-5 z-10 text-2xl filter drop-shadow-sm transform group-hover:scale-110 transition-transform">
-                                       {moodObj.emoji}
+                           {/* Content Container */}
+                           <div className="flex-1 mt-2 rounded-2xl overflow-hidden relative bg-surface-50 dark:bg-surface-800">
+                               {entry.coverImageId || entry.coverImage ? (
+                                   <SecureImage 
+                                      fileId={entry.coverImageId}
+                                      thumbnailUrl={entry.coverImage}
+                                      fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s600')}
+                                      alt="Cover"
+                                      className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+                                   />
+                               ) : (
+                                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-50 to-surface-100 dark:from-surface-800 dark:to-surface-800/50">
+                                       <p className="font-serif italic text-surface-400 text-sm p-6 text-center line-clamp-4">
+                                           {entry.content.substring(0, 100)}...
+                                       </p>
                                    </div>
                                )}
-
-                               {/* Content Container */}
-                               <div className="flex-1 mt-2 rounded-xl md:rounded-2xl overflow-hidden relative bg-surface-50 dark:bg-surface-800">
-                                   {entry.coverImageId || entry.coverImage ? (
-                                       <SecureImage 
-                                          fileId={entry.coverImageId}
-                                          thumbnailUrl={entry.coverImage}
-                                          fallbackSrc={entry.coverImage?.replace(/=s\d+/, '=s600')}
-                                          alt="Cover"
-                                          className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-                                       />
-                                   ) : (
-                                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-surface-50 to-surface-100 dark:from-surface-800 dark:to-surface-800/50">
-                                           <p className="font-serif italic text-surface-400 text-sm p-6 text-center line-clamp-4 leading-relaxed">
-                                               {entry.content.substring(0, 100)}...
-                                           </p>
-                                       </div>
-                                   )}
-                               </div>
-
-                               {/* Footer Title */}
-                               <div className="pt-3 md:pt-4 px-1">
-                                   <h3 className="font-display font-bold text-lg md:text-xl text-surface-900 dark:text-surface-100 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
-                                       {entry.title || "Untitled Entry"}
-                                   </h3>
-                               </div>
                            </div>
-                       );
-                   })}
-               </div>
-           )}
-       </div>
+
+                           {/* Footer Title */}
+                           <div className="pt-4 px-1">
+                               <h3 className="font-display font-bold text-xl text-surface-900 dark:text-surface-100 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                                   {entry.title || "Untitled Entry"}
+                               </h3>
+                           </div>
+                       </div>
+                   );
+               })}
+           </div>
+       )}
 
        {/* Floating Action Button - DESKTOP ONLY (Mobile has nav bar) */}
        <div className="hidden md:block fixed bottom-10 right-10 z-40">
@@ -511,7 +496,7 @@ const EntryEditorView: React.FC<{
           </div>
 
           {/* Editor Canvas */}
-          <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20 pb-20 md:pb-0">
+          <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20">
               <div className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-screen md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft p-6 md:p-16 relative">
                   
                   {/* Header Info */}
@@ -633,7 +618,7 @@ const EntryReaderView: React.FC<{
              </div>
         </div>
   
-        <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20 pb-20 md:pb-0">
+        <div className="flex-1 overflow-y-auto bg-[#F8F9FC] dark:bg-[#121214] md:bg-surface-50/50 md:dark:bg-black/20">
             <article className="max-w-3xl mx-auto my-0 md:my-12 bg-white dark:bg-surface-900 min-h-screen md:min-h-[80vh] md:rounded-[2rem] shadow-none md:shadow-soft overflow-hidden">
                 {/* Hero Image */}
                 {(entry.coverImageId || entry.coverImage) && (
@@ -708,13 +693,11 @@ const EntryReaderView: React.FC<{
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [allEntries, setAllEntries] = useState<JournalEntry[]>([]); // Cache for all entries
   const [view, setView] = useState<ViewState>({ type: 'LOGIN' }); 
   const [isLoading, setIsLoading] = useState(false);
   const [activeEntryData, setActiveEntryData] = useState<JournalEntry | undefined>(undefined);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -728,49 +711,6 @@ const App: React.FC = () => {
       };
       initializeDrive(cfg);
   }, []);
-
-  // Search Logic
-  useEffect(() => {
-    const performSearch = async () => {
-      // If no search term, restore full list from cache
-      if (!debouncedSearchTerm.trim()) {
-        if (entries !== allEntries) {
-             setEntries(allEntries);
-        }
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        // 1. Search via API (checks fullText content + name)
-        const serverResults = await DriveService.listEntries(debouncedSearchTerm);
-        
-        // 2. Search locally in titles (for instant results even if Drive hasn't indexed yet)
-        const localResults = allEntries.filter(e => 
-            e.title.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-        );
-
-        // 3. Merge results (prefer server results, but add local matches if missing)
-        const combined = [...serverResults];
-        localResults.forEach(local => {
-            if (!combined.find(c => c.id === local.id)) {
-                combined.push(local);
-            }
-        });
-        
-        setEntries(combined);
-      } catch (e) {
-        console.error("Search failed", e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    // Only search if logged in and initialized
-    if (DriveService.getIsLoggedIn()) {
-        performSearch();
-    }
-  }, [debouncedSearchTerm, allEntries]);
 
   const initializeDrive = async (cfg: GoogleConfig) => {
     setIsLoading(true);
@@ -789,17 +729,9 @@ const App: React.FC = () => {
   const refreshEntries = async () => {
     setIsLoading(true);
     try {
-        // Fetch all entries to update cache
         const list = await DriveService.listEntries();
-        setAllEntries(list);
-        
-        // If search is not active, update main display
-        if (!searchTerm.trim()) {
-            setEntries(list);
-        }
-        
-        if(view.type !== 'LOGIN') setView({ type: 'LIST' });
-
+        setEntries(list);
+        setView({ type: 'LIST' });
     } catch(e) { console.error(e); } 
     finally { setIsLoading(false); }
   };
@@ -816,7 +748,6 @@ const App: React.FC = () => {
                   const updated = { ...meta, ...content, coverImageId: content.attachments[0].id, coverImage: content.attachments[0].thumbnailLink };
                   setActiveEntryData(updated);
                   setEntries(prev => prev.map(e => e.id === id ? updated : e));
-                  setAllEntries(prev => prev.map(e => e.id === id ? updated : e));
               } else {
                   setActiveEntryData({ ...meta, ...content });
               }
@@ -835,17 +766,11 @@ const App: React.FC = () => {
           
           if(isUpdate) {
                setEntries(p => p.map(e => e.id === entry.id ? finalEntry : e));
-               setAllEntries(p => p.map(e => e.id === entry.id ? finalEntry : e));
                setActiveEntryData(finalEntry);
                setView({ type: 'READ', id: entry.id });
           } else {
-               // Add to local state immediately
-               const newEntries = [finalEntry, ...entries];
-               setEntries(newEntries);
-               setAllEntries([finalEntry, ...allEntries]);
-               
+               setEntries(p => [finalEntry, ...p]);
                setView({ type: 'LIST' });
-               // Background sync to ensure order and metadata are 100% correct from server
                setTimeout(refreshEntries, 1000);
           }
       } catch(e) { alert("Save failed"); console.error(e); }
@@ -855,16 +780,12 @@ const App: React.FC = () => {
       if(!confirm("Delete this memory forever?")) return;
       await DriveService.deleteEntry(id);
       setEntries(p => p.filter(e => e.id !== id));
-      setAllEntries(p => p.filter(e => e.id !== id));
       setView({ type: 'LIST' });
   };
 
   const handleSignOut = () => {
       DriveService.signOut();
       setView({ type: 'LOGIN' });
-      setEntries([]);
-      setAllEntries([]);
-      setSearchTerm('');
   };
 
   const renderView = () => {
@@ -881,14 +802,7 @@ const App: React.FC = () => {
                       isDark={darkMode} 
                       onSignOut={handleSignOut} 
                     />
-                    <EntryListView 
-                        entries={entries} 
-                        onSelect={handleReadEntry} 
-                        onCreate={() => setView({type: 'CREATE'})} 
-                        searchTerm={searchTerm} 
-                        onSearchChange={setSearchTerm} 
-                        isLoading={isLoading} 
-                    />
+                    <EntryListView entries={entries} onSelect={handleReadEntry} onCreate={() => setView({type: 'CREATE'})} searchTerm={searchTerm} onSearchChange={setSearchTerm} isLoading={isLoading} />
                     <MobileNav 
                       onChangeView={(t) => { if (t !== 'EDIT' && t !== 'READ') setView({type: t} as ViewState); }} 
                       activeView={view.type} 
